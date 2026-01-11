@@ -1,0 +1,66 @@
+.burger {
+	cursor: pointer;
+
+	position: relative;
+
+	display: none;
+	flex-direction: column;
+	gap: 8px;
+	align-items: center;
+	justify-content: center;
+
+	width: 28px;
+	height: 22px;
+
+	background: none;
+	border: none;
+	outline: none;
+}
+
+.line {
+	position: absolute;
+
+	width: 28px;
+	height: 2px;
+
+	background: var(--text-secondary);
+
+	transition: var(--transition);
+}
+
+.l1 {
+	top: 0;
+	transform-origin: top left;
+}
+
+.l2 {
+	top: 10px;
+}
+
+.l3 {
+	bottom: 0;
+	transform-origin: left bottom;
+}
+
+.burger:hover .line {
+	background: var(--red);
+}
+
+.open .l1 {
+	transform: rotateZ(45deg);
+}
+
+.open .l2 {
+	display: none;
+}
+
+.open .l3 {
+	bottom: 1px;
+	transform: rotateZ(-45deg);
+}
+
+@media (max-width: 1280px) {
+	.burger {
+		display: flex;
+	}
+}

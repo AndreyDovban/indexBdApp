@@ -1,0 +1,27 @@
+@font-face {
+	font-family: montserrat;
+	font-weight: 700;
+	font-display: swap;
+	src: url('fonts/Montserrat-Bold.ttf') format('ttf');
+}
+
+@font-face {
+	font-family: roboto;
+	font-weight: 700;
+	font-display: swap;
+	src: url('fonts/Roboto-Bold.ttf') format('ttf');
+}
+
+@font-face {
+	font-family: roboto;
+	font-weight: 400;
+	font-display: swap;
+	src: url('fonts/Roboto-Regular.ttf') format('ttf');
+}
+
+@font-face {
+	font-family: 'roboto_mono';
+	font-weight: 400;
+	font-display: swap;
+	src: url('fonts/RobotoMono-Regular.ttf') format('ttf');
+}

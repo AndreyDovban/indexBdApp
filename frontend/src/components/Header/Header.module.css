@@ -1,0 +1,23 @@
+.header {
+	display: flex;
+	gap: var(--s-6);
+	align-items: center;
+	justify-content: space-between;
+
+	padding: var(--s-6);
+}
+
+.logo_wrap {
+	display: flex;
+	gap: var(--s-2);
+	align-items: flex-end;
+	justify-content: center;
+}
+
+.logo {
+	height: 44px;
+}
+
+.title {
+	font: var(--font-h1-700);
+}

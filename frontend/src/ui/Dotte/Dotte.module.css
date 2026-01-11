@@ -1,0 +1,23 @@
+.dotte {
+	cursor: pointer;
+
+	transform-origin: left center;
+
+	width: 31px;
+	height: 4px;
+
+	background: var(--grey-100);
+	border: none;
+	border-radius: 2px;
+
+	transition: var(--transition);
+}
+
+.dotte:hover {
+	background: #e2112e;
+	background: linear-gradient(90deg, rgb(226 17 46 / 100%) 60%, rgb(243 244 246 / 100%) 100%);
+}
+
+.dotte:active {
+	background: #e2112e;
+}

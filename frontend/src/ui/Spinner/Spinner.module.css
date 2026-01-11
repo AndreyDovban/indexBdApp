@@ -1,0 +1,16 @@
+.loader {
+	aspect-ratio: 1;
+	width: 32px;
+	border-radius: 50%;
+	animation: l20-2 1.6s infinite linear;
+}
+
+@keyframes l20-2 {
+	0% {
+		transform: rotateZ(0deg);
+	}
+
+	100% {
+		transform: rotateZ(360deg);
+	}
+}

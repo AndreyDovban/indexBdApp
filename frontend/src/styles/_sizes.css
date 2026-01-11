@@ -1,0 +1,29 @@
+:root {
+	/* monmax width */
+	--max-width: 1680px;
+	--min-width: 320px;
+
+	/* margin. padding, gap */
+	--s-0: 0;
+	--s-1: 4px;
+	--s-2: 8px;
+	--s-3: 12px;
+	--s-4: 16px;
+	--s-5: 24px;
+	--s-6: 32px;
+	--s-7: 48px;
+	--s-8: 64px;
+
+	/* font header */
+	--font-h1-700: normal 700 22px/28px montserrat, sans-serif;
+	--font-h2-700: normal 700 22px/28px roboto, sans-serif;
+	--font-h3-400: normal 400 22px/28px roboto, sans-serif;
+	--font-h4-700: normal 700 18px/24px roboto, sans-serif;
+
+	/* font body */
+	--font-p1-700: normal 700 16px/24px roboto, sans-serif;
+	--font-p1-400: normal 400 16px/24px roboto, sans-serif;
+	--font-p2-700: normal 700 14px/20px roboto, sans-serif;
+	--font-p2-400: normal 400 14px/20px roboto, sans-serif;
+	--font-p3-400: normal 400 16/24px roboto_mono, sans-serif;
+}

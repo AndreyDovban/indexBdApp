@@ -1,0 +1,78 @@
+.dropdown {
+	cursor: pointer;
+
+	display: grid;
+	grid-template-areas: 'id title icon' 'id children children';
+	grid-template-columns: auto 1fr auto;
+	grid-template-rows: auto auto;
+	flex-direction: column;
+	column-gap: 20px;
+
+	padding: 20px;
+
+	background: var(--backgroud);
+	border: none;
+	border: 1px solid var(--border-primary);
+	border-radius: var(--s-3);
+
+	/* outline: none; */
+
+	transition: var(--transition);
+}
+
+.dropdown:hover {
+	background: var(--on-background);
+	border: 1px solid var(--on-background);
+}
+
+.disabled {
+	pointer-events: none;
+	opacity: 0.35;
+}
+
+.id {
+	grid-area: id;
+	font: var(--font-p2-400);
+	color: var(--red);
+}
+
+.title {
+	font: var(--font-p2-700);
+	color: var(--text-primary);
+	text-align: start;
+}
+
+.icon {
+	grid-area: icon;
+
+	width: 24px;
+	height: 24px;
+
+	fill: var(--icon-secondary);
+
+	transition: var(--transition);
+}
+
+.children {
+	pointer-events: none;
+
+	overflow: hidden;
+	grid-area: children;
+
+	max-height: 0;
+
+	font: var(--font-p2-400);
+	color: var(--text-secondary);
+	text-align: start;
+
+	transition: all 0.15s linear;
+}
+
+.open {
+	background: var(--on-background) !important;
+	border: 1px solid var(--on-background);
+}
+
+.open .icon {
+	transform: rotateX(180deg);
+}

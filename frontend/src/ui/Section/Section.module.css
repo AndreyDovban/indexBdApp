@@ -1,0 +1,13 @@
+.section {
+	position: relative;
+	width: 100%;
+	min-width: var(--min-width);
+	height: fit-content;
+}
+
+.anchor {
+	pointer-events: none;
+	position: absolute;
+	top: -4rem;
+	left: 0;
+}

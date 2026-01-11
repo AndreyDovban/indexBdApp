@@ -1,0 +1,79 @@
+.range {
+	cursor: pointer;
+
+	height: 2px;
+	margin-block: 8px;
+	padding: 0;
+
+	-webkit-appearance: none;
+	appearance: none;
+	background: var(--red);
+}
+
+.range:hover {
+	background: var(--red-dark);
+}
+
+.range::-moz-range-thumb {
+	width: 16px;
+	height: 16px;
+
+	appearance: none;
+	background: var(--red);
+	border: none;
+	border-radius: 100%;
+}
+
+/* фишка инпута */
+.range::-webkit-slider-thumb {
+	width: 16px;
+	height: 16px;
+
+	appearance: none;
+	background: var(--red);
+	border: none;
+	border-radius: 100%;
+}
+
+.range::-ms-thumb {
+	box-sizing: border-box;
+	width: 16px;
+	height: 16px;
+
+	appearance: none;
+	background: var(--red);
+	border: none;
+	border-radius: 100%;
+}
+
+.range:hover::-moz-range-thumb {
+	cursor: pointer;
+	background: var(--red-dark);
+}
+
+.range:hover::-webkit-slider-thumb {
+	cursor: pointer;
+	background: var(--red-dark);
+}
+
+.range:hover::-ms-thumb {
+	cursor: pointer;
+	background: var(--red-dark);
+}
+
+.range:active::-moz-range-thumb {
+	cursor: grabbing;
+}
+
+.range:active::-webkit-slider-thumb {
+	cursor: grabbing;
+}
+
+.range:active::-ms-thumb {
+	cursor: grabbing;
+}
+
+.range:disabled {
+	pointer-events: none;
+	opacity: 0.5;
+}

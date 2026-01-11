@@ -1,0 +1,29 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import svgr from 'vite-plugin-svgr';
+
+// https://vite.dev/config/
+export default defineConfig({
+	build: {
+		outDir: 'dist',
+	},
+	base: '',
+	server: {
+		port: 3000,
+		host: '0.0.0.0',
+		hmr: true,
+		proxy: {
+			'/api': {
+				target: 'http://localhost:4000',
+				changeOrigin: true,
+				secure: false,
+			},
+		},
+	},
+	plugins: [react(), svgr()],
+	resolve: {
+		alias: {
+			'@': '/src',
+		},
+	},
+});

@@ -1,0 +1,74 @@
+.dropdown {
+	cursor: pointer;
+
+	display: grid;
+	grid-template-areas: 'id title icon' 'id children children';
+	grid-template-columns: auto 1fr auto;
+	grid-template-rows: auto auto;
+	flex-direction: column;
+	column-gap: var(--s-4);
+
+	padding: var(--s-4);
+
+	background: var(--background-primary);
+	border: none;
+	border-radius: var(--s-3);
+
+	/* outline: none; */
+
+	transition: var(--transition);
+}
+
+.disabled {
+	pointer-events: none;
+	opacity: 0.35;
+}
+
+.id {
+	grid-area: id;
+	font: var(--font-p2-700);
+	color: var(--icon-primary);
+}
+
+.title {
+	font: var(--font-p2-700);
+	color: var(--text-primary);
+	text-align: start;
+}
+
+.icon {
+	grid-area: icon;
+
+	width: 24px;
+	height: 24px;
+
+	fill: var(--icon-secondary);
+
+	transition: var(--transition);
+}
+
+.children {
+	pointer-events: none;
+
+	overflow: hidden;
+
+	/* display: none; */
+	grid-area: children;
+
+	max-height: 0;
+
+	font: var(--font-p2-400);
+	color: var(--text-secondary);
+	text-align: start;
+
+	transition: max-height 0.5s cubic-bezier(0, 1, 0, 1);
+}
+
+.open_children {
+	max-height: 500px;
+	transition: max-height 1s linear;
+}
+
+.open .icon {
+	transform: rotateX(180deg);
+}

@@ -1,0 +1,29 @@
+.h1 {
+	font: var(--font-h1-700);
+}
+
+.h2 {
+	font: var(--font-h2-700);
+}
+
+.h3 {
+	font: var(--font-h3-700);
+}
+
+.h4 {
+	font: var(--font-h4-400);
+}
+
+@media (max-width: 1280px) {
+	.h1 {
+		font: var(--font-h2-700);
+	}
+
+	.h2 {
+		font: var(--font-h3-700);
+	}
+
+	.h3 {
+		font: var(--font-h4-700);
+	}
+}

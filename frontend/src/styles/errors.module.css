@@ -1,0 +1,54 @@
+.not_found {
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	gap: var(--s-6);
+	align-items: center;
+	justify-content: center;
+
+	padding-block: var(--s-7);
+	padding-inline: var(--s-6);
+}
+
+.icon {
+	width: 48px;
+	height: 48px;
+	fill: var(--icon-primary);
+}
+
+.title_block {
+	display: flex;
+	flex-direction: column;
+	gap: var(--s-3);
+	align-items: center;
+	justify-content: center;
+}
+
+.title {
+	color: var(--text-accent);
+	text-align: center;
+}
+
+.error_title {
+	font: var(--font-h3-700);
+	color: var(--text-accent);
+}
+
+.description {
+	max-width: 940px;
+
+	font: var(--font-p1-400);
+	color: var(--text-secondary);
+	text-align: center;
+	text-wrap: balance;
+}
+
+.button {
+	width: 268px;
+}
+
+@media (max-width: 1280px) {
+	.description {
+		font: var(--font-p2-700);
+	}
+}

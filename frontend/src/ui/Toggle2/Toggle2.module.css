@@ -1,0 +1,168 @@
+.toggle2 {
+	cursor: pointer;
+
+	position: relative;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	width: 44px;
+	height: 44px;
+	padding: var(--s-1);
+
+	border: none;
+	border-radius: var(--s-2);
+}
+
+.toggle2 svg {
+	pointer-events: none;
+	width: 26px;
+	height: 26px;
+}
+
+.toggle2 svg path {
+	pointer-events: none;
+}
+
+.toggle2:disabled {
+	pointer-events: none;
+	opacity: 0.35;
+}
+
+.primary {
+	color: var(--container-primary-content);
+	background: var(--container-primary-background);
+}
+
+.primary svg {
+	fill: var(--container-primary-content);
+}
+
+.primary:hover {
+	color: var(--container-on-primary-content);
+	background: var(--container-on-primary-background);
+}
+
+.primary:hover svg {
+	fill: var(--container-on-primary-content);
+}
+
+.primary:active {
+	color: var(--container-active-primary-content);
+	background: var(--container-active-primary-background);
+}
+
+.primary:active svg {
+	fill: var(--container-active-primary-content);
+}
+
+.secondary {
+	color: var(--container-secondary-content);
+	background: var(--container-secondary-background);
+}
+
+.secondary svg {
+	fill: var(--container-secondary-content);
+}
+
+.secondary:hover {
+	color: var(--container-on-secondary-content);
+	background: var(--container-on-secondary-background);
+}
+
+.secondary:hover svg {
+	fill: var(--container-on-secondary-content);
+}
+
+.secondary:active {
+	color: var(--container-active-secondary-content);
+	background: var(--container-active-secondary-background);
+}
+
+.secondary:active svg {
+	fill: var(--container-active-secondary-content);
+}
+
+.tertiary {
+	color: var(--container-tertiary-content);
+	background: var(--container-tertiary-background);
+}
+
+.tertiary svg {
+	fill: var(--container-tertiary-content);
+}
+
+.tertiary:hover {
+	color: var(--container-on-tertiary-content);
+	background: var(--container-on-tertiary-background);
+}
+
+.tertiary:hover svg {
+	fill: var(--container-on-tertiary-content);
+}
+
+.tertiary:active {
+	color: var(--container-active-tertiary-content);
+	background: var(--container-active-tertiary-background);
+}
+
+.tertiary:active svg {
+	fill: var(--container-active-tertiary-content);
+}
+
+.quaternary {
+	color: var(--container-quaternary-content);
+	background: var(--container-quaternary-background);
+}
+
+.quaternary svg {
+	fill: var(--container-quaternary-content);
+}
+
+.quaternary:hover {
+	color: var(--container-on-quaternary-content);
+	background: var(--container-on-quaternary-background);
+}
+
+.quaternary:hover svg {
+	fill: var(--container-on-quaternary-content);
+}
+
+.quaternary:active {
+	color: var(--container-active-quaternary-content);
+	background: var(--container-active-quaternary-background);
+}
+
+.quaternary:active svg {
+	fill: var(--container-active-quaternary-content);
+}
+
+.toggle2 > *:first-child {
+	display: block;
+}
+
+.toggle2 > *:last-child {
+	display: none;
+}
+
+.on > *:first-child {
+	display: none;
+}
+
+.on > *:last-child {
+	display: block;
+}
+
+.isActivate {
+	color: var(--grey-100) !important;
+	background-color: var(--red);
+}
+
+.isActivate svg {
+	fill: var(--grey-100) !important;
+}
+
+.toggle2:hover {
+	opacity: 0.7;
+}

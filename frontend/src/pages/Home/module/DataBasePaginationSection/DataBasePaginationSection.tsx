@@ -1,6 +1,6 @@
-import styles from './DataBaseSection.module.css';
+import styles from './DataBasePaginationSection.module.css';
 import { useCallback, useEffect, useMemo, type DetailedHTMLProps, type HTMLAttributes } from 'react';
-import { useGetIndexDbData } from '@/hooks';
+import { useGetAdvancedData } from '@/hooks';
 import { Spinner } from '@/ui';
 import SortUp from '@/assets/svg/sort-up.svg?react';
 import SortDown from '@/assets/svg/sort-down.svg?react';
@@ -10,8 +10,8 @@ interface DataBaseProps extends DetailedHTMLProps<HTMLAttributes<HTMLElement>, H
 	className?: string;
 }
 
-export function DataBaseSection({ className, ...props }: DataBaseProps) {
-	const { data, request, loading } = useGetIndexDbData();
+export function DataBasePaginationSection({ className, ...props }: DataBaseProps) {
+	const { data, request, loading } = useGetAdvancedData();
 
 	useEffect(() => {
 		request();
@@ -73,7 +73,9 @@ export function DataBaseSection({ className, ...props }: DataBaseProps) {
 		// console.log('render title');
 
 		return (
-			<h3 className={styles.title}>Работа с IndexDb{loading ? <Spinner className={styles.spinner} /> : ''}</h3>
+			<h3 className={styles.title}>
+				Работа с IndexDb Pagination{loading ? <Spinner className={styles.spinner} /> : ''}
+			</h3>
 		);
 	}, [loading]);
 

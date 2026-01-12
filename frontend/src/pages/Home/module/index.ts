@@ -1,3 +1,4 @@
 export * from './GetDataSection/GetDataSection';
 export * from './CreateDataSection/CreateDataSection';
-export * from './DataBaseSection/DataBaseSection';
+export * from './DataBasePaginationSection/DataBasePaginationSection';
+export * from './DataBaseRangeSection/DataBaseRangeSection';

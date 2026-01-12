@@ -26,13 +26,13 @@ const openDB = async (): Promise<IDBDatabase> => {
 	});
 };
 
-export function useGetIndexDbData() {
+export function useGetRangeData() {
 	const [data, setData] = useState<IData>();
 	const [loading, setLoading] = useState<boolean>(false);
 	const [error, setError] = useState<Error | null>(null);
 
 	const request = async (config?: IOptions) => {
-		const { sortBy = 'obj_name', direction = 'next', limit = 10, offset = 0, startKey = null } = config || {};
+		const { sortBy = 'obj_name', direction = 'next', limit = 20, offset = 0, startKey = null } = config || {};
 
 		try {
 			setLoading(true);
@@ -66,7 +66,6 @@ export function useGetIndexDbData() {
 							? IDBKeyRange.lowerBound(startKey, true) // Больше чем startKey
 							: IDBKeyRange.upperBound(startKey, true); // Меньше чем startKey
 					}
-					let hasAdvanced = false;
 
 					// Второе значение в openCursor — это направление ('next', 'prev', 'nextunique', 'prevunique')
 					const cursorRequest = source.openCursor(range, direction);
@@ -74,19 +73,7 @@ export function useGetIndexDbData() {
 					cursorRequest.onsuccess = event => {
 						const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
 
-						if (!cursor) {
-							resolve(results);
-							return;
-						}
-
-						// Вместо advance(offset) используем ручной пропуск в итерациях
-						if (offset > 0 && !hasAdvanced) {
-							hasAdvanced = true;
-							cursor.advance(offset);
-							return;
-						}
-
-						if (results.length < limit) {
+						if (cursor && results.length < limit) {
 							results.push(cursor.value);
 							cursor.continue();
 						} else {
@@ -120,6 +107,7 @@ export function useGetIndexDbData() {
 					direction,
 					limit,
 					offset,
+					startKey: resultData.length > 0 ? resultData[resultData.length - 1].obj_name : null,
 				},
 			});
 

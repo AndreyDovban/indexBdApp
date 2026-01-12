@@ -5,6 +5,8 @@ function getRandomInt(min, max) {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+const LITERALS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
 const createData = async num => {
 	const writeStream = createWriteStream('output.json');
 
@@ -18,9 +20,14 @@ const createData = async num => {
 	async function* dataGenerator() {
 		yield '[';
 		for (let i = 0; i < len; i++) {
+			let liter = '';
+			for (let el of String(i)) {
+				liter += LITERALS[el];
+			}
+
 			// Формируем строку аналогично вашему циклу
 			const chunk =
-				`{"obj_name":"uid=test____mmartynov${i},cn=users,cn=accounts,dc=granulex,dc=test","change_type":"${
+				`{"obj_name":"uid=test____mmartynov${liter},cn=users,cn=accounts,dc=granulex,dc=test","change_type":"${
 					change_types[getRandomInt(0, 2)]
 				}",` +
 				last +

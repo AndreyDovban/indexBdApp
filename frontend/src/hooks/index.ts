@@ -1,3 +1,4 @@
 export * from './useRequest';
 export * from './useRequestStream';
-export * from './useGetIndexDbData';
+export * from './useGetAdvancedData';
+export * from './useGetRangeData';

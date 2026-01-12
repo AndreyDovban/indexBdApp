@@ -32,7 +32,7 @@ export function useGetAdvancedData() {
 	const [error, setError] = useState<Error | null>(null);
 
 	const request = async (config?: IOptions) => {
-		const { sortBy = 'obj_name', direction = 'next', limit = 10, offset = 0, startKey = null } = config || {};
+		const { sortBy = 'obj_name', direction = 'next', limit = 20, offset = 0, startKey = null } = config || {};
 
 		try {
 			setLoading(true);

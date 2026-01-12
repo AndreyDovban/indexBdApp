@@ -7,7 +7,7 @@ export interface IOptions {
 	count: number;
 	sortBy: 'obj_name' | 'change_type';
 	direction: 'next' | 'prev';
-	offset?: number;
+	offset: number;
 	limit: number;
 	filter?: {
 		field: string;

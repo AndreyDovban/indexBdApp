@@ -39,6 +39,7 @@ export function useGetRangeData() {
 			limit = 400,
 			invert = false,
 			old_result = null,
+			offset = 0,
 		} = config || {};
 
 		try {
@@ -123,6 +124,7 @@ export function useGetRangeData() {
 					count: cachedTotal || 0,
 					sortBy,
 					direction,
+					offset,
 					limit,
 					invert,
 				},

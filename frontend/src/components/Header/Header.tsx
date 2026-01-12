@@ -16,6 +16,8 @@ export function Header({ className, ...props }: HeaderProps) {
 				<h1 className={styles.title}>INDEX BD</h1>
 			</div>
 
+			<div className={styles.grow}></div>
+
 			<ThemeSwitcher />
 		</header>
 	);

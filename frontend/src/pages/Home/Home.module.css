@@ -1,6 +1,6 @@
 .home_page {
 	display: grid;
-	grid-template-areas: 'create_block table_block' 'get_block table_block' '. table_block';
+	grid-template-areas: 'create_block table_block' 'get_block table_block' 'switch_mode table_block';
 	grid-template-columns: auto 1fr;
 	grid-template-rows: auto auto 1fr;
 	flex-grow: 1;
@@ -24,4 +24,8 @@
 
 .get_block {
 	grid-area: get_block;
+}
+
+.switch_mode {
+	grid-area: switch_mode;
 }

@@ -2,8 +2,6 @@
 	display: flex;
 	gap: var(--s-6);
 	align-items: center;
-	justify-content: space-between;
-
 	padding: var(--s-6);
 }
 
@@ -20,4 +18,8 @@
 
 .title {
 	font: var(--font-h1-700);
+}
+
+.grow {
+	flex-grow: 1;
 }

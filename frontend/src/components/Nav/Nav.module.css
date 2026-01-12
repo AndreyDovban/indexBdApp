@@ -1,0 +1,16 @@
+.nav {
+	display: flex;
+	gap: var(--s-6);
+	align-items: center;
+}
+
+.link {
+	cursor: pointer;
+	font: var(--font-p1-400);
+	color: var(--text-primry);
+	text-decoration: none;
+}
+
+.link:hover {
+	color: var(--red);
+}

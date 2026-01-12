@@ -20,7 +20,7 @@ const openDB = async (): Promise<IDBDatabase> => {
 			const db: IDBDatabase = target.result;
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
 				const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'obj_name' });
-				objectStore.createIndex('change_type', 'change_type', { unique: false });
+				objectStore.createIndex('change_type', ['change_type', 'obj_name'], { unique: false });
 			}
 		};
 	});

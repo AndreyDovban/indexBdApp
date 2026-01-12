@@ -32,15 +32,20 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 		[request],
 	);
 
-	const changePage = useCallback(() => {
-		if (data) {
-			request({
-				...data.options,
-				offset: 0,
-				startKey: data.options.startKey,
-			});
-		}
-	}, [request]);
+	const changePage = useCallback(
+		(invert: boolean) => {
+			if (data) {
+				request({
+					...data.options,
+					offset: 0,
+					startKey: data.options.startKey,
+					invert,
+					old_result: data.users.length ? data.users : null,
+				});
+			}
+		},
+		[request],
+	);
 
 	const title = useMemo(() => {
 		// console.log('render title');
@@ -121,11 +126,11 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 
 		return (
 			<div className={styles.pagination}>
-				<button className={styles.pagination_btn} onClick={() => changePage()}>
+				<button className={styles.pagination_btn} onClick={() => changePage(true)}>
 					prev
 				</button>
 
-				<button className={styles.pagination_btn} onClick={() => changePage()}>
+				<button className={styles.pagination_btn} onClick={() => changePage(false)}>
 					next
 				</button>
 

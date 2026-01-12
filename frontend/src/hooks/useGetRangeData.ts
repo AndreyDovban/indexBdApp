@@ -21,6 +21,7 @@ const openDB = async (): Promise<IDBDatabase> => {
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
 				const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'obj_name' });
 				objectStore.createIndex('change_type', 'change_type', { unique: false });
+				objectStore.createIndex('change_type', ['change_type', 'obj_name'], { unique: false });
 			}
 		};
 	});
@@ -32,7 +33,13 @@ export function useGetRangeData() {
 	const [error, setError] = useState<Error | null>(null);
 
 	const request = async (config?: IOptions) => {
-		const { sortBy = 'obj_name', direction = 'next', limit = 20, offset = 0, startKey = null } = config || {};
+		const {
+			sortBy = 'obj_name',
+			direction = 'next',
+			limit = 400,
+			invert = false,
+			old_result = null,
+		} = config || {};
 
 		try {
 			setLoading(true);
@@ -44,31 +51,42 @@ export function useGetRangeData() {
 				dbInstance = null;
 			}
 
-			//  Открытие базы
 			dbInstance = await openDB();
 			const db = dbInstance;
 
-			// 2. Открываем транзакцию на чтение
 			const transaction = db.transaction(STORE_NAME, 'readonly');
 			const store = transaction.objectStore(STORE_NAME);
 
-			const promises: [Promise<IUser[]>, Promise<number>] = [
-				new Promise<IUser[]>((resolve, reject) => {
+			const fetchBatch = (old: IUser[] | null, inv: boolean): Promise<IUser[]> => {
+				return new Promise<IUser[]>((resolve, reject) => {
 					const results: IUser[] = [];
 
 					// Если sortBy совпадает с keyPath (obj_name), используем store.
 					// Иначе используем индекс.
-					const source = sortBy === 'obj_name' ? store : store.index(sortBy);
+					const isPrimary = sortBy === 'obj_name';
+					const source = isPrimary ? store : store.index('change_type');
 
 					let range: IDBKeyRange | null = null;
-					if (startKey) {
-						range = direction.includes('next')
-							? IDBKeyRange.lowerBound(startKey, true) // Больше чем startKey
-							: IDBKeyRange.upperBound(startKey, true); // Меньше чем startKey
+					let actualDirection = direction;
+					if (inv) {
+						actualDirection = direction.includes('next') ? 'prev' : 'next';
+					}
+					if (old && old.length) {
+						const pivot = inv ? old[0] : old[old.length - 1];
+						const pivotKey = isPrimary ? pivot.obj_name : [pivot.change_type, pivot.obj_name];
+						if (inv) {
+							range = direction.includes('next')
+								? IDBKeyRange.upperBound(pivotKey, true) // Больше чем startKey
+								: IDBKeyRange.lowerBound(pivotKey, true); // Меньше чем startKey
+						} else {
+							range = direction.includes('next')
+								? IDBKeyRange.lowerBound(pivotKey, true) // Больше чем startKey
+								: IDBKeyRange.upperBound(pivotKey, true); // Меньше чем startKey
+						}
 					}
 
 					// Второе значение в openCursor — это направление ('next', 'prev', 'nextunique', 'prevunique')
-					const cursorRequest = source.openCursor(range, direction);
+					const cursorRequest = source.openCursor(range, actualDirection);
 
 					cursorRequest.onsuccess = event => {
 						const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
@@ -82,32 +100,31 @@ export function useGetRangeData() {
 					};
 
 					cursorRequest.onerror = () => reject(cursorRequest.error);
-				}),
+				});
+			};
 
-				cachedTotal !== null
-					? Promise.resolve(cachedTotal)
-					: new Promise(resolve => {
-							const countReq = store.count();
-							countReq.onsuccess = () => {
-								cachedTotal = countReq.result;
-								resolve(countReq.result);
-							};
-							// В случае ошибки count не блокируем загрузку данных
-							countReq.onerror = () => resolve(0);
-					  }),
-			];
+			let resultData = await fetchBatch(old_result, invert);
 
-			const [resultData, total] = await Promise.all(promises);
+			if (resultData.length === 0 && old_result !== null) {
+				resultData = await fetchBatch(null, invert);
+			}
+
+			if (cachedTotal == null) {
+				const countReq = store.count();
+				cachedTotal = await new Promise(res => {
+					countReq.onsuccess = () => res(countReq.result);
+					countReq.onerror = () => res(0);
+				});
+			}
 
 			setData({
-				users: resultData,
+				users: invert ? resultData.reverse() : resultData,
 				options: {
-					count: total,
+					count: cachedTotal || 0,
 					sortBy,
 					direction,
 					limit,
-					offset,
-					startKey: resultData.length > 0 ? resultData[resultData.length - 1].obj_name : null,
+					invert,
 				},
 			});
 

@@ -21,6 +21,7 @@ const openDB = async (): Promise<IDBDatabase> => {
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
 				const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'obj_name' });
 				objectStore.createIndex('change_type', ['change_type', 'obj_name'], { unique: false });
+				objectStore.createIndex('object_type', ['object_type', 'obj_name'], { unique: false });
 			}
 		};
 	});
@@ -116,6 +117,7 @@ export function useGetAdvancedData() {
 				users: resultData,
 				options: {
 					count: total,
+					filteredCount: 0,
 					sortBy,
 					direction,
 					limit,

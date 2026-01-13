@@ -89,7 +89,7 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 		}
 	};
 
-	const hadlerFilterToClick = (filters: Record<'change_type', string>) => {
+	const hadlerFilterToClick = (filters: Record<string, string>) => {
 		if (data) {
 			request({
 				...data.options,
@@ -181,6 +181,18 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 										{buttonClearFilter(data.options.filters)}
 									</div>
 								</th>
+								<th className={styles.th}>
+									<div>
+										<span>object_type</span>
+										<span className={styles.grow}></span>
+										{buttonSort(
+											data.options.direction,
+											data.options.sortBy == 'object_type',
+											'object_type',
+										)}
+										{buttonClearFilter(data.options.filters)}
+									</div>
+								</th>
 							</tr>
 						</thead>
 					)}
@@ -196,6 +208,12 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 											onClick={() => hadlerFilterToClick({ change_type: el.change_type })}
 										>
 											{el.change_type}
+										</td>
+										<td
+											className={cn(styles.td, styles.td_filtered)}
+											onClick={() => hadlerFilterToClick({ object_type: el.object_type })}
+										>
+											{el.object_type}
 										</td>
 									</tr>
 								);
@@ -225,7 +243,9 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 
 				<div className={styles.grow}></div>
 
-				<span> {data?.options.count}</span>
+				<span>
+					{data?.options.filteredCount} / {data?.options.count}
+				</span>
 			</div>
 		);
 		// eslint-disable-next-line react-hooks/exhaustive-deps

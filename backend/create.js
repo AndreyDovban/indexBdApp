@@ -11,6 +11,7 @@ const createData = async num => {
 	const writeStream = createWriteStream('output.json');
 
 	const change_types = ['changed', 'deleted', 'moved'];
+	const object_types = ['person', 'group', 'container'];
 
 	const len = num;
 
@@ -29,7 +30,7 @@ const createData = async num => {
 			const chunk =
 				`{"obj_name":"uid=test____mmartynov${i},cn=users,cn=accounts,dc=granulex,dc=test","change_type":"${
 					change_types[getRandomInt(0, 2)]
-				}",` +
+				}","object_type":"${object_types[getRandomInt(0, 2)]}",` +
 				last +
 				(i !== len - 1 ? ',' : '');
 			yield chunk;

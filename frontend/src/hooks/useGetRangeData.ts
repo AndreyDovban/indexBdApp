@@ -21,6 +21,7 @@ const openDB = async (): Promise<IDBDatabase> => {
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
 				const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'obj_name' });
 				objectStore.createIndex('change_type', ['change_type', 'obj_name'], { unique: false });
+				objectStore.createIndex('object_type', ['object_type', 'obj_name'], { unique: false });
 			}
 		};
 	});
@@ -151,10 +152,33 @@ export function useGetRangeData() {
 				});
 			}
 
+			// Подсчет filteredCount (как в предыдущем ответе)
+			const getFilteredCount = (): Promise<number> => {
+				return new Promise(resolve => {
+					const activeFilter = filters?.object_type
+						? { key: 'object_type', val: filters.object_type }
+						: filters?.change_type
+						? { key: 'change_type', val: filters.change_type }
+						: null;
+
+					if (!activeFilter) {
+						const req = store.count();
+						req.onsuccess = () => resolve(req.result);
+					} else {
+						const range = IDBKeyRange.bound([activeFilter.val, ''], [activeFilter.val, '\uffff']);
+						const req = store.index(activeFilter.key).count(range);
+						req.onsuccess = () => resolve(req.result);
+					}
+				});
+			};
+
+			const filteredCount = await getFilteredCount();
+
 			setData({
 				users: invert ? resultData.reverse() : resultData,
 				options: {
 					count: cachedTotal || 0,
+					filteredCount,
 					sortBy,
 					direction,
 					offset,

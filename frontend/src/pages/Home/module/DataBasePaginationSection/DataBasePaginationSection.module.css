@@ -114,7 +114,10 @@
 .pagination {
 	display: flex;
 	gap: var(--s-2);
-	align-self: center;
+}
+
+.grow {
+	flex-grow: 1;
 }
 
 .pagination_btn {

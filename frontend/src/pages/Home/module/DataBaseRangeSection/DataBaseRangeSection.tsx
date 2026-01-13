@@ -1,5 +1,13 @@
 import styles from './DataBaseRangeSection.module.css';
-import { useCallback, useEffect, useMemo, type DetailedHTMLProps, type HTMLAttributes } from 'react';
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	type DetailedHTMLProps,
+	type HTMLAttributes,
+	useRef,
+	type UIEvent,
+} from 'react';
 import { useGetRangeData } from '@/hooks';
 import { Spinner } from '@/ui';
 import SortUp from '@/assets/svg/sort-up.svg?react';
@@ -12,6 +20,7 @@ interface DataBaseProps extends DetailedHTMLProps<HTMLAttributes<HTMLElement>, H
 
 export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 	const { data, request, loading } = useGetRangeData();
+	const tableRef = useRef<HTMLDivElement | null>(null);
 
 	useEffect(() => {
 		request();
@@ -47,6 +56,35 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 		[request],
 	);
 
+	const handlerScroll = (e: UIEvent<HTMLDivElement>) => {
+		const target = e.currentTarget;
+
+		if (target.scrollTop + target.clientHeight >= target.scrollHeight) {
+			if (data) {
+				target.scrollTop = 1;
+				request({
+					...data.options,
+					offset: 0,
+					startKey: data.options.startKey,
+					invert: false,
+					old_result: data.users.length ? data.users : null,
+				});
+			}
+		}
+		if (target.scrollTop == 0) {
+			if (data) {
+				target.scrollTop = target.scrollHeight - target.clientHeight - 1;
+				request({
+					...data.options,
+					offset: 0,
+					startKey: data.options.startKey,
+					invert: true,
+					old_result: data.users.length ? data.users : null,
+				});
+			}
+		}
+	};
+
 	const title = useMemo(() => {
 		// console.log('render title');
 
@@ -60,7 +98,7 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 	const table = useMemo(() => {
 		// console.log('render table');
 		return (
-			<div className={styles.wrap}>
+			<div className={styles.wrap} ref={tableRef} onScrollEnd={handlerScroll}>
 				<table className={styles.table}>
 					{data && (
 						<thead className={styles.thead}>
@@ -127,14 +165,18 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 		return (
 			<div className={styles.pagination}>
 				<button className={styles.pagination_btn} onClick={() => changePage(true)}>
-					prev
+					<SortUp />
 				</button>
 
-				<button className={styles.pagination_btn} onClick={() => changePage(false)}>
-					next
+				<button
+					className={cn(styles.pagination_btn, styles.pagination_btn_down)}
+					onClick={() => changePage(false)}
+				>
+					<SortUp />
 				</button>
 
-				<hr />
+				<div className={styles.grow}></div>
+
 				<span> {data?.options.count}</span>
 			</div>
 		);

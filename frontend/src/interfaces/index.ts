@@ -9,9 +9,8 @@ export interface IOptions {
 	direction: 'next' | 'prev';
 	offset: number;
 	limit: number;
-	filter?: {
-		field: string;
-		value: unknown;
+	filters?: {
+		change_type: string;
 	};
 	startKey?: string | null;
 	invert?: boolean;

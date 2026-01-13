@@ -185,7 +185,7 @@ export function DataBasePaginationSection({ className, ...props }: DataBaseProps
 				<button className={styles.pagination_btn} onClick={() => changePage('last', 0)}>
 					last
 				</button>
-				<hr />
+				<div className={styles.grow}></div>
 				<span> {data?.options.count}</span>
 			</div>
 		);

@@ -22,6 +22,7 @@
 }
 
 .wrap {
+	scroll-behavior: auto;
 	overflow-y: auto;
 	flex-grow: 1;
 	width: 100%;
@@ -114,7 +115,6 @@
 .pagination {
 	display: flex;
 	gap: var(--s-2);
-	align-self: center;
 }
 
 .pagination_btn {
@@ -135,8 +135,29 @@
 	border-radius: var(--s-1);
 }
 
+.grow {
+	flex-grow: 1;
+}
+
+.pagination_btn svg {
+	width: 16px;
+	height: 16px;
+	margin-top: 8px;
+	fill: var(--icon-primary);
+}
+
+.pagination_btn_down svg {
+	transform: rotateZ(180deg);
+	margin-top: 0;
+	margin-bottom: 7px;
+}
+
 .pagination_btn:hover {
 	background: var(--background-secondary);
+}
+
+.pagination_btn:hover svg {
+	fill: var(--red);
 }
 
 .pagination_btn_active {

@@ -5,7 +5,7 @@ export interface IUser {
 
 export interface IOptions {
 	count: number;
-	sortBy: 'obj_name' | 'change_type';
+	sortBy: string;
 	direction: 'next' | 'prev';
 	offset: number;
 	limit: number;

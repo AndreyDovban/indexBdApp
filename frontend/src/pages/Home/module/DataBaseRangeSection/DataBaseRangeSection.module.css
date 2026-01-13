@@ -87,28 +87,46 @@
 }
 
 .th div {
-	cursor: pointer;
-
 	display: flex;
+	gap: var(--s-2);
 	align-items: center;
 	justify-content: space-between;
 
 	padding-inline: var(--s-3);
 }
 
-.th:hover div {
+.td_filtered {
+	cursor: pointer;
+}
+
+.td_filtered:hover {
 	background: var(--background-secondary);
 }
 
-.icon {
+.sort_btn {
+	cursor: pointer;
+
+	display: flex;
+	align-content: center;
+	justify-content: center;
+
+	background: none;
+	border: none;
+	border-radius: var(--s-1);
+}
+
+.sort_btn svg {
+	pointer-events: none;
 	width: 16px;
 	height: 16px;
-	visibility: hidden;
 	fill: var(--icon-primary);
 }
 
-.sort_active {
-	visibility: visible;
+.sort_btn:hover svg {
+	fill: var(--red);
+}
+
+.sort_active svg {
 	fill: var(--green);
 }
 

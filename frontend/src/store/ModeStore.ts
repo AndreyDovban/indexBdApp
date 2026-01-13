@@ -6,7 +6,7 @@ interface IModeStore {
 	toggleMode: () => void;
 }
 
-const initial = 'pagination';
+const initial = 'range';
 
 export const useModeStore = create<IModeStore>(set => ({
 	mode: initial,

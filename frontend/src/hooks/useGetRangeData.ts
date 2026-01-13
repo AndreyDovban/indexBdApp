@@ -20,7 +20,6 @@ const openDB = async (): Promise<IDBDatabase> => {
 			const db: IDBDatabase = target.result;
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
 				const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'obj_name' });
-				objectStore.createIndex('change_type', 'change_type', { unique: false });
 				objectStore.createIndex('change_type', ['change_type', 'obj_name'], { unique: false });
 			}
 		};
@@ -36,10 +35,12 @@ export function useGetRangeData() {
 		const {
 			sortBy = 'obj_name',
 			direction = 'next',
-			limit = 10,
+			limit = 3,
 			invert = false,
 			old_result = null,
 			offset = 0,
+			// filters = { change_type: 'moved' },
+			filters,
 		} = config || {};
 
 		try {
@@ -52,42 +53,72 @@ export function useGetRangeData() {
 				dbInstance = null;
 			}
 
-			dbInstance = await openDB();
+			dbInstance = await openDB(); // Открытие соединения с базой
 			const db = dbInstance;
 
-			const transaction = db.transaction(STORE_NAME, 'readonly');
-			const store = transaction.objectStore(STORE_NAME);
+			const transaction = db.transaction(STORE_NAME, 'readonly'); // Создание транзакции в режиме чтения
+			const store = transaction.objectStore(STORE_NAME); //
 
 			const fetchBatch = (old: IUser[] | null, inv: boolean): Promise<IUser[]> => {
 				return new Promise<IUser[]>((resolve, reject) => {
-					const results: IUser[] = [];
+					const results: IUser[] = []; // Итоговый результат, массив выбранных объетов
+					const filterValue = filters?.change_type; // Значения фильтров
 
-					// Если sortBy совпадает с keyPath (obj_name), используем store.
-					// Иначе используем индекс.
-					const isPrimary = sortBy === 'obj_name';
-					const source = isPrimary ? store : store.index('change_type');
+					console.log('before source - filter:', filterValue);
 
-					let range: IDBKeyRange | null = null;
-					let actualDirection = direction;
-					if (inv) {
-						actualDirection = direction.includes('next') ? 'prev' : 'next';
+					let source; // Определение источника
+					const isPrimary = sortBy === 'obj_name'; // Является ли выбранная для сортироваки колонка с первичным ключом
+					// Если есть фильтр, ВСЕГДА используем составной индекс, так как он поддерживает и фильтр, и сортировку
+					if (filterValue !== undefined) {
+						source = store.index('change_type'); // индекс всегда ['change_type', 'obj_name']
+					} else {
+						source = isPrimary ? store : store.index('change_type'); //
 					}
-					if (old && old.length) {
-						const pivot = inv ? old[0] : old[old.length - 1];
-						const pivotKey = isPrimary ? pivot.obj_name : [pivot.change_type, pivot.obj_name];
-						if (inv) {
-							range = direction.includes('next')
-								? IDBKeyRange.upperBound(pivotKey, true) // Больше чем startKey
-								: IDBKeyRange.lowerBound(pivotKey, true); // Меньше чем startKey
+
+					let range: IDBKeyRange | null = null; // Диапазон для выбора значений
+
+					let actualDirection = direction; // Актуалное направление скрола
+					if (inv) {
+						actualDirection = direction.includes('next') ? 'prev' : 'next'; // Инверси направления скрола в зависимости от перезанного параметра в запрос
+					}
+
+					console.log('befoer filters - old', old);
+
+					// При заданных фильтрах
+					if (filterValue) {
+						// Если существует предыдущее значение
+						if (old && old.length) {
+							console.log('filters and old - filter', filterValue);
+							const pivot = inv ? old[0] : old[old.length - 1]; // Точка отсчета: берем первый элемент при инверсии (вверх) или последний (вниз)
+							const pivotKey = [pivot.change_type, pivot.obj_name]; // Получение ключа отсчёта в зависимости выбранной колонки для сортировки
+
+							if (actualDirection.includes('next')) {
+								range = IDBKeyRange.bound(pivotKey, [filterValue, '\uffff'], true); // Идем от текущего элемента до конца диапазона этого фильтра
+							} else {
+								range = IDBKeyRange.bound([filterValue, ''], pivotKey, false, true); // Идем от начала диапазона фильтра до текущего элемента
+							}
 						} else {
-							range = direction.includes('next')
-								? IDBKeyRange.lowerBound(pivotKey, true) // Больше чем startKey
-								: IDBKeyRange.upperBound(pivotKey, true); // Меньше чем startKey
+							console.log('filters without old - filter', filterValue);
+
+							range = IDBKeyRange.bound([filterValue, ''], [filterValue, '\uffff']); // Первая страница с фильтром: строго в границах значения filterValue
+						}
+					} else {
+						if (old && old.length) {
+							console.log('old without filters - filter', filterValue);
+							const pivot = inv ? old[0] : old[old.length - 1]; // Получение объекта для отсчёта в зависимости от направления скрола
+							const pivotKey = isPrimary ? pivot.obj_name : [pivot.change_type, pivot.obj_name]; // Получение ключа отсчёта в зависимости выбранной колонки для сортировки
+
+							if (actualDirection.includes('next')) {
+								range = IDBKeyRange.lowerBound(pivotKey, true); // Больше чем startKey
+							} else {
+								range = IDBKeyRange.upperBound(pivotKey, true); // Меньше чем startKey
+							}
+						} else {
+							console.log('without old without filters - filter', filterValue);
 						}
 					}
 
-					// Второе значение в openCursor — это направление ('next', 'prev', 'nextunique', 'prevunique')
-					const cursorRequest = source.openCursor(range, actualDirection);
+					const cursorRequest = source.openCursor(range, actualDirection); // Запрос к базе
 
 					cursorRequest.onsuccess = event => {
 						const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
@@ -104,18 +135,12 @@ export function useGetRangeData() {
 				});
 			};
 
+			console.log('------------------------------------\nbefore fetch - old', old_result);
+
 			let resultData = await fetchBatch(old_result, invert);
 
-			// if (resultData.length === 0 && old_result !== null) {
-			// 	resultData = await fetchBatch(null, invert);
-			// }
-
 			if (resultData.length === 0 && old_result !== null) {
-				if (invert) {
-					resultData = old_result.reverse();
-				} else {
-					resultData = old_result;
-				}
+				resultData = await fetchBatch(null, invert);
 			}
 
 			if (cachedTotal == null) {
@@ -135,6 +160,7 @@ export function useGetRangeData() {
 					offset,
 					limit,
 					invert,
+					filters,
 				},
 			});
 

@@ -12,6 +12,8 @@ import { useGetRangeData } from '@/hooks';
 import { Spinner } from '@/ui';
 import SortUp from '@/assets/svg/sort-up.svg?react';
 import SortDown from '@/assets/svg/sort-down.svg?react';
+import Sort from '@/assets/svg/sort.svg?react';
+import Close from '@/assets/svg/bun.svg?react';
 import cn from 'classnames';
 
 interface DataBaseProps extends DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> {
@@ -28,7 +30,7 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 	}, []);
 
 	const changeSort = useCallback(
-		(column: 'obj_name' | 'change_type') => {
+		(column: string) => {
 			if (data) {
 				request({
 					...data.options,
@@ -38,6 +40,7 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 				});
 			}
 		},
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[request],
 	);
 
@@ -53,6 +56,7 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 				});
 			}
 		},
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[request],
 	);
 
@@ -85,6 +89,31 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 		}
 	};
 
+	const hadlerFilterToClick = (filters: Record<'change_type', string>) => {
+		if (data) {
+			request({
+				...data.options,
+				offset: 0,
+				startKey: data.options.startKey,
+				filters,
+				invert: false,
+				old_result: null,
+			});
+		}
+	};
+
+	const handleClearFilters = () => {
+		if (data) {
+			request({
+				...data.options,
+				offset: 0,
+				startKey: data.options.startKey,
+				filters: undefined,
+				old_result: null,
+			});
+		}
+	};
+
 	const title = useMemo(() => {
 		// console.log('render title');
 
@@ -95,6 +124,31 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 		);
 	}, [loading]);
 
+	const buttonSort = (direction: string, targetSort: boolean, sortBy: string) => {
+		if (targetSort) {
+			return (
+				<button className={cn(styles.sort_btn, styles.sort_active)} onClick={() => changeSort(sortBy)}>
+					{direction == 'next' ? <SortUp /> : <SortDown />}
+				</button>
+			);
+		}
+		return (
+			<button className={cn(styles.sort_btn)} onClick={() => changeSort(sortBy)}>
+				<Sort />
+			</button>
+		);
+	};
+
+	const buttonClearFilter = (filters: Record<string, string> | undefined) => {
+		if (filters) {
+			return (
+				<button className={cn(styles.sort_btn)} onClick={handleClearFilters}>
+					<Close />
+				</button>
+			);
+		}
+	};
+
 	const table = useMemo(() => {
 		// console.log('render table');
 		return (
@@ -103,40 +157,28 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 					{data && (
 						<thead className={styles.thead}>
 							<tr>
-								<th className={styles.th} onClick={() => changeSort('obj_name')}>
+								<th className={styles.th}>
 									<div>
 										<span>uid</span>
-										{data.options.direction == 'next' ? (
-											<SortUp
-												className={cn(styles.icon, {
-													[styles.sort_active]: data.options.sortBy == 'obj_name',
-												})}
-											/>
-										) : (
-											<SortDown
-												className={cn(styles.icon, {
-													[styles.sort_active]: data.options.sortBy == 'obj_name',
-												})}
-											/>
+										<span className={styles.grow}></span>
+										{buttonSort(
+											data.options.direction,
+											data.options.sortBy == 'obj_name',
+											'obj_name',
 										)}
+										{buttonClearFilter(data.options.filters)}
 									</div>
 								</th>
-								<th className={styles.th} onClick={() => changeSort('change_type')}>
+								<th className={styles.th}>
 									<div>
 										<span>change_type</span>
-										{data.options.direction == 'next' ? (
-											<SortUp
-												className={cn(styles.icon, {
-													[styles.sort_active]: data.options.sortBy == 'change_type',
-												})}
-											/>
-										) : (
-											<SortDown
-												className={cn(styles.icon, {
-													[styles.sort_active]: data.options.sortBy == 'change_type',
-												})}
-											/>
+										<span className={styles.grow}></span>
+										{buttonSort(
+											data.options.direction,
+											data.options.sortBy == 'change_type',
+											'change_type',
 										)}
+										{buttonClearFilter(data.options.filters)}
 									</div>
 								</th>
 							</tr>
@@ -149,7 +191,12 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 								return (
 									<tr key={el.obj_name} className={styles.tr}>
 										<td className={styles.td}>{el.obj_name}</td>
-										<td className={styles.td}>{el.change_type}</td>
+										<td
+											className={cn(styles.td, styles.td_filtered)}
+											onClick={() => hadlerFilterToClick({ change_type: el.change_type })}
+										>
+											{el.change_type}
+										</td>
 									</tr>
 								);
 							})}
@@ -157,6 +204,7 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 				</table>
 			</div>
 		);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [data]);
 
 	const pagination = useMemo(() => {
@@ -180,6 +228,7 @@ export function DataBaseRangeSection({ className, ...props }: DataBaseProps) {
 				<span> {data?.options.count}</span>
 			</div>
 		);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [data]);
 
 	return (

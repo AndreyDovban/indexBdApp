@@ -2,7 +2,7 @@ import { db } from '@/db';
 import styles from './DataBaseDexieSection.module.css';
 import { useMemo, useState, type DetailedHTMLProps, type HTMLAttributes } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Spinner } from '@/ui';
+import { CheckBox, Spinner } from '@/ui';
 import Close from '@/assets/svg/bun.svg?react';
 import cn from 'classnames';
 
@@ -13,7 +13,7 @@ interface DataBaseDexieProps extends DetailedHTMLProps<HTMLAttributes<HTMLElemen
 // Интерфейс для активных фильтров
 interface IFilters {
 	obj_type?: string;
-	change_type?: string;
+	change_type?: string | string[];
 	search_name?: string;
 }
 
@@ -23,38 +23,53 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 
 	const result = useLiveQuery(async () => {
 		setLoading(true);
-		const { change_type, obj_type, search_name } = filters;
 
-		// 1. Используем приоритетный фильтр через составной индекс
-		// Это максимально сужает выборку на уровне движка БД (скорость O(log N))
-		let collection = change_type
-			? db.objects.where('[change_type+obj_name]').between([change_type, ''], [change_type, '\uffff'])
-			: db.objects.toCollection();
+		try {
+			const { change_type, obj_type, search_name } = filters;
 
-		// 2. Добавляем фильтр на точное равенство obj_type
-		if (obj_type) {
-			collection = collection.and(item => item.obj_type === obj_type);
+			// 1. Используется приоритетный фильтр через составной индекс
+			// Это максимально сужает выборку на уровне движка БД (скорость O(log N))
+			let collection = db.objects.toCollection();
+
+			console.log(change_type);
+			// 2. Подсчёт общего количества записей без фильтров
+			const totalCount = await collection.count();
+
+			//  Используем составной индекс [change_type+obj_name] для нескольких значений
+			if (Array.isArray(change_type) && change_type.length > 0) {
+				collection = db.objects.where('change_type').anyOf(change_type);
+			} else {
+				collection = db.objects.toCollection();
+			}
+
+			// 3. Добавляется фильтр на точное равенство obj_type
+			if (obj_type) {
+				collection = collection.and(item => item.obj_type === obj_type);
+			}
+
+			// 4. Добавляется фильтр на вхождение строки в obj_name (аналог SQL LIKE %str%)
+			if (search_name) {
+				const query = search_name.toLowerCase();
+				collection = collection.and(item => item.obj_name.toLowerCase().includes(query));
+			}
+
+			// 5. Подсчёт общего количества подходящих записей (до применения limit)
+			const filteredCount = await collection.count();
+
+			// 6. Получение данныч с ограничением (пагинацией)
+			const items = await collection.limit(50).toArray();
+
+			return {
+				items,
+				filteredCount,
+				totalCount,
+			};
+		} finally {
+			setLoading(false);
 		}
-
-		// 3. Добавляем фильтр на вхождение строки в obj_name (аналог SQL LIKE %str%)
-		if (search_name) {
-			const query = search_name.toLowerCase();
-			collection = collection.and(item => item.obj_name.toLowerCase().includes(query));
-		}
-
-		// 3. Считаем общее количество подходящих записей (до применения limit)
-		const filteredCount = await collection.count();
-
-		// 4. Получаем сами данные с ограничением (пагинацией)
-		const items = await collection.limit(50).toArray();
-		setLoading(false);
-		return {
-			items,
-			filteredCount,
-		};
 	}, [filters]);
 
-	const { items = [], filteredCount = 0 } = result || {};
+	const { items = [], filteredCount = 0, totalCount = 0 } = result || {};
 
 	const handleClickToSort = (field: keyof IFilters, value: string) => {
 		setFilters((prev: IFilters) => {
@@ -74,13 +89,47 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		});
 	};
 
+	const handleCheckboxChange = (type: string) => {
+		if (filters.change_type) {
+			let change_type_arr = filters.change_type as string[];
+			if (filters.change_type?.includes(type)) {
+				change_type_arr = change_type_arr.filter(t => t !== type);
+			} else {
+				change_type_arr.push(type);
+			}
+
+			setFilters(prev => {
+				return { ...prev, change_type: change_type_arr };
+			});
+		} else {
+			setFilters(prev => {
+				return { ...prev, change_type: [type] };
+			});
+		}
+	};
+
+	// const handleCheckboxChange = (type: string) => {
+	// 	setFilters(prev => {
+	// 		const current = prev.change_type || [];
+	// 		const next = current.includes(type) ? current.filter(t => t !== type) : [...current, type];
+	// 		return { ...prev, change_type: next };
+	// 	});
+	// };
+
 	const title = useMemo(() => {
 		return (
 			<h3 className={styles.title}>
-				Работа с Dexie {items == undefined || loading ? <Spinner className={styles.spinner} /> : ''}
+				Работа с Dexie{' '}
+				{items == undefined || loading ? (
+					<Spinner className={styles.spinner} />
+				) : (
+					<span>
+						{filteredCount} / {totalCount}
+					</span>
+				)}
 			</h3>
 		);
-	}, [items, loading]);
+	}, [filteredCount, items, loading, totalCount]);
 
 	const table = useMemo(() => {
 		return (
@@ -139,17 +188,12 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 									<tr key={el.obj_name} className={styles.tr}>
 										<td className={styles.td}>{el.obj_name}</td>
 										<td
-											className={styles.td}
+											className={cn(styles.td, styles.td_filtered)}
 											onClick={() => handleClickToSort('obj_type', el.obj_type)}
 										>
 											{el.obj_type}
 										</td>
-										<td
-											className={styles.td}
-											onClick={() => handleClickToSort('change_type', el.change_type)}
-										>
-											{el.change_type}
-										</td>
+										<td className={styles.td}>{el.change_type}</td>
 									</tr>
 								);
 							})}
@@ -159,13 +203,41 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		);
 	}, [filters, items]);
 
+	const checkboxes = useMemo(() => {
+		return (
+			<div className={styles.checkboxes}>
+				<label>
+					<CheckBox
+						onChange={() => handleCheckboxChange('changed')}
+						checked={filters.change_type?.includes('changed')}
+					/>
+					Изменённые
+				</label>
+				<label>
+					<CheckBox
+						onChange={() => handleCheckboxChange('deleted')}
+						checked={filters.change_type?.includes('deleted')}
+					/>
+					Удалённые
+				</label>
+				<label>
+					<CheckBox
+						onChange={() => handleCheckboxChange('moved')}
+						checked={filters.change_type?.includes('moved')}
+					/>
+					Перемещённые
+				</label>
+			</div>
+		);
+	}, [handleCheckboxChange]);
+
 	return (
 		<section className={`${className} ${styles.data_base_section}`} {...props}>
 			{title}
 
 			{table}
 
-			{filteredCount}
+			{checkboxes}
 		</section>
 	);
 }

@@ -39,10 +39,10 @@
 .th,
 .td {
 	border-spacing: 0;
-
-	/* border-collapse: collapse; */
 	background: var(--background-primary);
 }
+
+/* Ячейки шапки таблицы */
 
 .th {
 	position: sticky;
@@ -57,10 +57,16 @@
 	border-bottom: 1px solid var(--icon-primary);
 }
 
-.th:last-child {
+.th:nth-child(2) {
 	width: 150px;
 	border-right: none;
 }
+
+.th:last-child {
+	display: none;
+}
+
+/* Ячейки тела таблицы */
 
 .td {
 	padding-inline: var(--s-3);
@@ -72,9 +78,21 @@
 	border-bottom: 1px solid var(--icon-primary);
 }
 
-.td:last-child {
+.td:first-child {
+	cursor: pointer;
+}
+
+.td:first-child:hover {
+	color: var(--red);
+}
+
+.td:nth-child(2) {
 	width: 150px;
 	border-right: none;
+}
+
+.td:last-child {
+	display: none;
 }
 
 .spinner {
@@ -102,6 +120,26 @@
 	background: var(--background-secondary);
 }
 
+/* Блок с чекбоксами */
+.checkboxes {
+	display: flex;
+	flex-direction: column;
+	gap: var(--s-2);
+}
+
+.checkboxes label {
+	cursor: pointer;
+	display: flex;
+	gap: var(--s-4);
+	align-items: center;
+}
+
+.checkboxes label:hover {
+	color: var(--red);
+}
+
+/* Кнопки сортировки */
+
 .sort_btn {
 	cursor: pointer;
 
@@ -128,6 +166,8 @@
 .sort_active svg {
 	fill: var(--green);
 }
+
+/* Кнопки пкгинации */
 
 .pagination {
 	display: flex;

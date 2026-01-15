@@ -167,7 +167,7 @@
 	fill: var(--red);
 }
 
-.sort_active svg {
+.active svg {
 	fill: var(--green);
 }
 

@@ -18,15 +18,16 @@ interface IFilters {
 	obj_type?: string;
 	change_type: string[];
 	search_name?: string;
-	// sortBy?: string;
 }
 
+// Интерфейс состояния таблицы
 interface ITableState {
 	filters: IFilters;
 	direction: 'next' | 'prev';
 	sortBy?: string;
 }
 
+// Компонент секция отрисовки данных indexDB
 export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps) {
 	const [state, setState] = useState<ITableState>({
 		filters: {
@@ -47,10 +48,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 			// 1. Используется приоритетный фильтр через составной индекс
 			let collection = db.objects.toCollection();
 
-			// 2. Подсчёт общего количества записей без фильтров
-			const totalCount = await collection.count();
-
-			//
+			// 2. Определение индекса сортировки
 			if (sortBy === 'obj_type') {
 				collection = db.objects.orderBy('[obj_type+obj_name]');
 			} else if (sortBy === 'change_type') {
@@ -60,22 +58,22 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				collection = db.objects.toCollection();
 			}
 
-			//
+			// 3. Если не выбран не один тип изменения возвращается пустой массив
 			if (change_type.length == 0) {
-				return { items: [], filteredCount: 0, totalCount };
+				return { items: [], filteredCount: 0 };
 			}
 
-			//
+			// 4. Определение направления сортировки
 			if (direction === 'prev') {
 				collection = collection.reverse();
 			}
 
-			// 3. Добавляется фильтр на вхлждение в массив change_type
+			// 5. Добавление фильтра на вхождение в массив change_type
 			if (change_type.length > 0) {
 				collection = collection.and(item => change_type.includes(item.change_type));
 			}
 
-			//  Используем составной индекс [change_type+obj_name] для нескольких значений
+			//  Используется составной индекс [change_type+obj_name] для нескольких значений
 			// if (change_type.length == 1) {
 			// 	collection = db.objects
 			// 		.where('[change_type+obj_name]')
@@ -92,35 +90,38 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 			// 	collection = db.objects.toCollection();
 			// }
 
-			// 3. Добавляется фильтр на точное равенство obj_type
+			// 6. Добавление фильтра на точное равенство obj_type
 			if (obj_type) {
 				collection = collection.and(item => item.obj_type === obj_type);
 			}
 
-			// 4. Добавляется фильтр на вхождение строки в obj_name (аналог SQL LIKE %str%)
+			// 7. Добавление фильтра на вхождение строки в obj_name (аналог SQL LIKE %str%)
 			if (search_name) {
 				const query = search_name.toLowerCase();
 				collection = collection.and(item => item.obj_name.toLowerCase().includes(query));
 			}
 
-			// 5. Подсчёт общего количества подходящих записей (до применения limit)
-			const filteredCount = await collection.count();
+			// 8. Подсчёт общего количества подходящих записей (до применения limit)
+			let filteredCount = 0;
+			if (search_name || obj_type || change_type.length != 3) {
+				filteredCount = await collection.count();
+			}
 
-			// 6. Получение данныч с ограничением (пагинацией)
-			const items = await collection.limit(50).toArray();
+			// 9. Получение данныч с ограничением (пагинацией)
+			const items = await collection.limit(100).toArray();
 
 			return {
 				items,
 				filteredCount,
-				totalCount,
 			};
 		} finally {
 			setLoading(false);
 		}
 	}, [state]);
 
-	const { items = [], filteredCount = 0, totalCount = 0 } = result || {};
+	const { items = [], filteredCount = 0 } = result || {};
 
+	// Функция изменения сортировки
 	const changeSort = (sortBy: string) => {
 		setState(prev => {
 			const next = { ...prev };
@@ -130,6 +131,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		});
 	};
 
+	// Функция задания фильтра кликом по полю яцейки тела таблици
 	const handleClickToSort = (field: keyof IFilters, value: string) => {
 		setState((prev: ITableState) => {
 			const next = { ...prev };
@@ -140,6 +142,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		});
 	};
 
+	// Функция сброса фильтра по выбранному полю
 	const handleClearFilters = (field: keyof IFilters) => {
 		setState((prev: ITableState) => {
 			const next = { ...prev };
@@ -151,6 +154,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		});
 	};
 
+	// Функция изменения фильтра по полю change_type
 	const handleCheckboxChange = (type: string) => {
 		let arr = [...state.filters.change_type];
 		if (arr.includes(type)) {
@@ -166,6 +170,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		});
 	};
 
+	// Блок заколовка компонента
 	const title = useMemo(() => {
 		return (
 			<h3 className={styles.title}>
@@ -173,18 +178,17 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				{items == undefined || loading ? (
 					<Spinner className={styles.spinner} />
 				) : (
-					<span>
-						{filteredCount} / {totalCount}
-					</span>
+					<span>{filteredCount} / totalCount</span>
 				)}
 			</h3>
 		);
-	}, [filteredCount, items, loading, totalCount]);
+	}, [filteredCount, items, loading]);
 
+	// Кнопка сострелками направления фильтрации для ячеек шапки таблицы
 	const buttonSort = (direction: string, targetSort: boolean, sortBy: string) => {
 		if (targetSort) {
 			return (
-				<button className={cn(styles.sort_btn, styles.sort_active)} onClick={() => changeSort(sortBy)}>
+				<button className={cn(styles.sort_btn, styles.active)} onClick={() => changeSort(sortBy)}>
 					{direction == 'next' ? <SortUp /> : <SortDown />}
 				</button>
 			);
@@ -196,6 +200,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		);
 	};
 
+	// Блок таблица
 	const table = useMemo(() => {
 		return (
 			<div className={styles.wrap}>
@@ -224,7 +229,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 										<span className={styles.grow}></span>
 										{buttonSort(state.direction, state.sortBy == 'obj_type', 'obj_type')}
 										<button
-											className={cn(styles.sort_btn, {
+											className={cn(styles.sort_btn, styles.active, {
 												[styles.hide]: !('obj_type' in state.filters),
 											})}
 											onClick={() => handleClearFilters('obj_type' as keyof IFilters)}
@@ -265,6 +270,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		);
 	}, [items, state.filters]);
 
+	// Блок чекбоксов фильтрации по полю change_type
 	const checkboxes = useMemo(() => {
 		return (
 			<div className={styles.checkboxes}>

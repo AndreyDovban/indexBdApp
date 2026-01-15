@@ -57,6 +57,10 @@
 	border-bottom: 1px solid var(--icon-primary);
 }
 
+.th:first-child {
+	width: 100%;
+}
+
 .th:nth-child(2) {
 	width: 150px;
 	border-right: none;

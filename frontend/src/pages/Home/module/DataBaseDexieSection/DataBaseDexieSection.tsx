@@ -5,6 +5,9 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { CheckBox, Spinner } from '@/ui';
 import Close from '@/assets/svg/bun.svg?react';
 import cn from 'classnames';
+import SortUp from '@/assets/svg/sort-up.svg?react';
+import SortDown from '@/assets/svg/sort-down.svg?react';
+import Sort from '@/assets/svg/sort.svg?react';
 
 interface DataBaseDexieProps extends DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> {
 	className?: string;
@@ -13,34 +16,81 @@ interface DataBaseDexieProps extends DetailedHTMLProps<HTMLAttributes<HTMLElemen
 // Интерфейс для активных фильтров
 interface IFilters {
 	obj_type?: string;
-	change_type?: string | string[];
+	change_type: string[];
 	search_name?: string;
+	// sortBy?: string;
+}
+
+interface ITableState {
+	filters: IFilters;
+	direction: 'next' | 'prev';
+	sortBy?: string;
 }
 
 export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps) {
-	const [filters, setFilters] = useState<IFilters>({});
+	const [state, setState] = useState<ITableState>({
+		filters: {
+			change_type: ['changed', 'deleted', 'moved'],
+		},
+		direction: 'next',
+	});
 	const [loading, setLoading] = useState<boolean>(false);
 
 	const result = useLiveQuery(async () => {
 		setLoading(true);
 
 		try {
-			const { change_type, obj_type, search_name } = filters;
+			const { change_type, obj_type, search_name } = state.filters;
+			const { sortBy } = state;
+			const { direction } = state;
 
 			// 1. Используется приоритетный фильтр через составной индекс
-			// Это максимально сужает выборку на уровне движка БД (скорость O(log N))
 			let collection = db.objects.toCollection();
 
-			console.log(change_type);
 			// 2. Подсчёт общего количества записей без фильтров
 			const totalCount = await collection.count();
 
-			//  Используем составной индекс [change_type+obj_name] для нескольких значений
-			if (Array.isArray(change_type) && change_type.length > 0) {
-				collection = db.objects.where('change_type').anyOf(change_type);
+			//
+			if (sortBy === 'obj_type') {
+				collection = db.objects.orderBy('[obj_type+obj_name]');
+			} else if (sortBy === 'change_type') {
+				collection = db.objects.orderBy('[change_type+obj_name]');
 			} else {
+				// По умолчанию сортировка по первичному ключу (obj_name)
 				collection = db.objects.toCollection();
 			}
+
+			//
+			if (change_type.length == 0) {
+				return { items: [], filteredCount: 0, totalCount };
+			}
+
+			//
+			if (direction === 'prev') {
+				collection = collection.reverse();
+			}
+
+			// 3. Добавляется фильтр на вхлждение в массив change_type
+			if (change_type.length > 0) {
+				collection = collection.and(item => change_type.includes(item.change_type));
+			}
+
+			//  Используем составной индекс [change_type+obj_name] для нескольких значений
+			// if (change_type.length == 1) {
+			// 	collection = db.objects
+			// 		.where('[change_type+obj_name]')
+			// 		.between([change_type[0], ''], [change_type[0], '\uffff']);
+			// } else if (change_type.length == 2) {
+			// 	collection = db.objects
+			// 		.where('[change_type+obj_name]')
+			// 		.between([change_type[0], ''], [change_type[0], '\uffff'])
+			// 		.or('[change_type+obj_name]')
+			// 		.between([change_type[1], ''], [change_type[1], '\uffff']);
+			// } else if (change_type.length == 0) {
+			// 	return { items: [], filteredCount: 0, totalCount };
+			// } else {
+			// 	collection = db.objects.toCollection();
+			// }
 
 			// 3. Добавляется фильтр на точное равенство obj_type
 			if (obj_type) {
@@ -67,54 +117,54 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		} finally {
 			setLoading(false);
 		}
-	}, [filters]);
+	}, [state]);
 
 	const { items = [], filteredCount = 0, totalCount = 0 } = result || {};
 
-	const handleClickToSort = (field: keyof IFilters, value: string) => {
-		setFilters((prev: IFilters) => {
+	const changeSort = (sortBy: string) => {
+		setState(prev => {
 			const next = { ...prev };
-			next[field] = value;
+			next.sortBy = sortBy;
+			next.direction = next.direction == 'next' ? 'prev' : 'next';
+			return next;
+		});
+	};
+
+	const handleClickToSort = (field: keyof IFilters, value: string) => {
+		setState((prev: ITableState) => {
+			const next = { ...prev };
+			if (field != 'change_type') {
+				next['filters'][field] = value;
+			}
 			return next;
 		});
 	};
 
 	const handleClearFilters = (field: keyof IFilters) => {
-		setFilters((prev: IFilters) => {
+		setState((prev: ITableState) => {
 			const next = { ...prev };
-			if (field in next) {
-				delete next[field];
+			if (field in next.filters) {
+				delete next['filters'][field];
 			}
+
 			return next;
 		});
 	};
 
 	const handleCheckboxChange = (type: string) => {
-		if (filters.change_type) {
-			let change_type_arr = filters.change_type as string[];
-			if (filters.change_type?.includes(type)) {
-				change_type_arr = change_type_arr.filter(t => t !== type);
-			} else {
-				change_type_arr.push(type);
-			}
-
-			setFilters(prev => {
-				return { ...prev, change_type: change_type_arr };
-			});
+		let arr = [...state.filters.change_type];
+		if (arr.includes(type)) {
+			arr = arr.filter(el => el !== type);
 		} else {
-			setFilters(prev => {
-				return { ...prev, change_type: [type] };
-			});
+			arr.push(type);
 		}
-	};
 
-	// const handleCheckboxChange = (type: string) => {
-	// 	setFilters(prev => {
-	// 		const current = prev.change_type || [];
-	// 		const next = current.includes(type) ? current.filter(t => t !== type) : [...current, type];
-	// 		return { ...prev, change_type: next };
-	// 	});
-	// };
+		setState(prev => {
+			const next = { ...prev };
+			next.filters.change_type = arr;
+			return next;
+		});
+	};
 
 	const title = useMemo(() => {
 		return (
@@ -131,6 +181,21 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		);
 	}, [filteredCount, items, loading, totalCount]);
 
+	const buttonSort = (direction: string, targetSort: boolean, sortBy: string) => {
+		if (targetSort) {
+			return (
+				<button className={cn(styles.sort_btn, styles.sort_active)} onClick={() => changeSort(sortBy)}>
+					{direction == 'next' ? <SortUp /> : <SortDown />}
+				</button>
+			);
+		}
+		return (
+			<button className={cn(styles.sort_btn)} onClick={() => changeSort(sortBy)}>
+				<Sort />
+			</button>
+		);
+	};
+
 	const table = useMemo(() => {
 		return (
 			<div className={styles.wrap}>
@@ -142,8 +207,11 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 									<div>
 										<span>uid</span>
 										<span className={styles.grow}></span>
+										{buttonSort(state.direction, state.sortBy == 'obj_name', 'obj_name')}
 										<button
-											className={cn(styles.sort_btn, { [styles.hide]: !('obj_name' in filters) })}
+											className={cn(styles.sort_btn, {
+												[styles.hide]: !('obj_name' in state.filters),
+											})}
 											onClick={() => handleClearFilters('obj_name' as keyof IFilters)}
 										>
 											<Close />
@@ -154,8 +222,11 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 									<div>
 										<span>obj_type</span>
 										<span className={styles.grow}></span>
+										{buttonSort(state.direction, state.sortBy == 'obj_type', 'obj_type')}
 										<button
-											className={cn(styles.sort_btn, { [styles.hide]: !('obj_type' in filters) })}
+											className={cn(styles.sort_btn, {
+												[styles.hide]: !('obj_type' in state.filters),
+											})}
 											onClick={() => handleClearFilters('obj_type' as keyof IFilters)}
 										>
 											<Close />
@@ -166,15 +237,6 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 								<th className={styles.th}>
 									<div>
 										<span>change_type</span>
-										<span className={styles.grow}></span>
-										<button
-											className={cn(styles.sort_btn, {
-												[styles.hide]: !('change_type' in filters),
-											})}
-											onClick={() => handleClearFilters('change_type' as keyof IFilters)}
-										>
-											<Close />
-										</button>
 									</div>
 								</th>
 							</tr>
@@ -201,7 +263,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				</table>
 			</div>
 		);
-	}, [filters, items]);
+	}, [items, state.filters]);
 
 	const checkboxes = useMemo(() => {
 		return (
@@ -209,21 +271,21 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				<label>
 					<CheckBox
 						onChange={() => handleCheckboxChange('changed')}
-						checked={filters.change_type?.includes('changed')}
+						checked={state.filters.change_type.includes('changed')}
 					/>
 					Изменённые
 				</label>
 				<label>
 					<CheckBox
 						onChange={() => handleCheckboxChange('deleted')}
-						checked={filters.change_type?.includes('deleted')}
+						checked={state.filters.change_type.includes('deleted')}
 					/>
 					Удалённые
 				</label>
 				<label>
 					<CheckBox
 						onChange={() => handleCheckboxChange('moved')}
-						checked={filters.change_type?.includes('moved')}
+						checked={state.filters.change_type.includes('moved')}
 					/>
 					Перемещённые
 				</label>

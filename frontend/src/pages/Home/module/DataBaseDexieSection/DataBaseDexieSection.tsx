@@ -172,6 +172,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 
 	// Блок заколовка компонента
 	const title = useMemo(() => {
+		// console.log('title render');
 		return (
 			<h3 className={styles.title}>
 				Работа с Dexie{' '}
@@ -182,7 +183,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				)}
 			</h3>
 		);
-	}, [filteredCount, items, loading]);
+	}, [filteredCount, loading]);
 
 	// Кнопка сострелками направления фильтрации для ячеек шапки таблицы
 	const buttonSort = (direction: string, targetSort: boolean, sortBy: string) => {
@@ -202,6 +203,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 
 	// Блок таблица
 	const table = useMemo(() => {
+		// console.log('table render');
 		return (
 			<div className={styles.wrap}>
 				<table className={styles.table}>
@@ -268,7 +270,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				</table>
 			</div>
 		);
-	}, [items, state.filters]);
+	}, [items]);
 
 	// Блок чекбоксов фильтрации по полю change_type
 	const checkboxes = useMemo(() => {

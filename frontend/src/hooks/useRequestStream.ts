@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { db, type Objects } from '@/db'; // Импортируем экземпляр db из db.ts
+import Dexie from 'dexie';
 
 type IRequestConfig = {
 	method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -7,49 +9,12 @@ type IRequestConfig = {
 
 type IHeaders = Record<string, string>;
 
-// Настройки БД
-const DB_NAME = 'StreamDataDB';
-const STORE_NAME = 'objects';
-const DB_VERSION = 1;
-
-let dbInstance: IDBDatabase | null = null;
-
 export function useRequestStream<T>(url: string) {
 	const [data, setData] = useState<T>();
 	const [loading, setLoading] = useState<boolean>(false);
 	const [error, setError] = useState<Error | null>(null);
 
 	let controller = new AbortController();
-
-	// Вспомогательная функция для открытия БД
-	const openDB = async (): Promise<IDBDatabase> => {
-		// 1. Сначала удаляем старую базу данных
-		await new Promise((resolve, reject) => {
-			const deleteRequest = indexedDB.deleteDatabase(DB_NAME);
-			deleteRequest.onsuccess = () => resolve(true);
-			deleteRequest.onerror = () => reject(new Error('Не удалось удалить старую БД'));
-			// Если база открыта в другой вкладке, удаление может быть заблокировано
-			deleteRequest.onblocked = () => {
-				console.warn('Удаление БД заблокировано. Закройте другие вкладки.');
-				resolve(false);
-			};
-		});
-
-		return new Promise((resolve, reject) => {
-			const request = indexedDB.open(DB_NAME, DB_VERSION);
-			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve(request.result);
-			request.onupgradeneeded = (e: IDBVersionChangeEvent) => {
-				const target = e.target as IDBOpenDBRequest;
-				const db: IDBDatabase = target.result;
-				if (!db.objectStoreNames.contains(STORE_NAME)) {
-					const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'obj_name' });
-					objectStore.createIndex('change_type', ['change_type', 'obj_name'], { unique: false });
-					objectStore.createIndex('object_type', ['object_type', 'obj_name'], { unique: false });
-				}
-			};
-		});
-	};
 
 	const request = async (config?: IRequestConfig) => {
 		const headers: IHeaders = { 'Content-Type': 'application/json' };
@@ -62,15 +27,10 @@ export function useRequestStream<T>(url: string) {
 			controller = new AbortController();
 			const signal = controller.signal;
 
-			// Закрываем предыдущее соединение, если оно осталось от прошлого запроса
-			if (dbInstance) {
-				dbInstance.close();
-				dbInstance = null;
-			}
-
-			// Инициализируем новую пустую БД
-			dbInstance = await openDB();
-			const db = dbInstance;
+			// 1. Очищаем старую базу данных перед началом нового стрима
+			// Dexie.delete() полностью удаляет и пересоздает базу, гарантируя чистое состояние.
+			await Dexie.delete('StreamDataDB');
+			await db.open(); // Открываем соединение заново
 
 			const response = await fetch(url, {
 				method: config?.method || 'GET',
@@ -87,61 +47,56 @@ export function useRequestStream<T>(url: string) {
 
 			const decoder = new TextDecoder();
 
-			let buffer = new ArrayBuffer(1024 * 1024); // Выделяем 64КБ под буфер
+			let buffer = new ArrayBuffer(1024 * 1024);
 			let leftover: string | undefined = '';
+			const objectsToStore: Objects[] = [];
 
 			try {
 				let count = 0;
-				while (true) {
-					// Передаем view нашего буфера в reader
-					const { done, value } = await reader.read(new Uint8Array(buffer));
 
-					if (done) break;
+				// 2. Используем одну большую транзакцию Dexie для всего процесса загрузки.
+				// Это гарантирует атомарность: либо все объекты сохранятся, либо ни один.
+				// Это также эффективно для useLiveQuery, который среагирует только один раз по завершении транзакции.
+				await db.transaction('readwrite', db.objects, async () => {
+					while (true) {
+						// Передаем view нашего буфера в reader
+						const { done, value } = await reader.read(new Uint8Array(buffer));
 
-					// Декодируем только полученную часть данных
-					const chunk = leftover + decoder.decode(value, { stream: true });
+						if (done) break;
 
-					const lines: string[] = chunk.split(/\[\{|\}\},\{|\}\}\]/);
+						// Декодируем только полученную часть данных
+						const chunk = leftover + decoder.decode(value, { stream: true });
 
-					// Последний кусок может быть неполным JSON-объектом
-					leftover = lines.pop();
+						const lines: string[] = chunk.split(/\[\{|\}\},\{|\}\}\]/);
 
-					// 2. Открываем транзакцию на запись для текущей пачки объектов
-					const transaction = db.transaction(STORE_NAME, 'readwrite');
-					const store = transaction.objectStore(STORE_NAME);
+						// Последний кусок может быть неполным JSON-объектом
+						leftover = lines.pop();
 
-					for (const line of lines) {
-						if (line.trim()) {
-							const str = '{' + line + '}}';
-							try {
-								const obj = JSON.parse(str);
-
-								// 3. Записываем объект в IndexedDB
-								store.add(obj);
-
-								count++;
-							} catch (e) {
-								console.error('Ошибка парсинга строки:', e, '\n', line);
+						for (const line of lines) {
+							if (line.trim()) {
+								const str = '{' + line + '}}';
+								try {
+									// Предполагаем, что JSON.parse() вернет объект типа Objects
+									const obj = JSON.parse(str);
+									objectsToStore.push(obj);
+									count++;
+								} catch (e) {
+									console.error('Ошибка парсинга строки:', e, '\n', line);
+								}
 							}
 						}
+
+						// Повторно используем тот же ArrayBuffer для следующего чтения
+						buffer = value.buffer;
 					}
 
-					// Ждем завершения транзакции для этой порции (опционально, для надежности)
-					await new Promise(res => {
-						transaction.oncomplete = res;
-						transaction.onerror = () => {
-							console.error('Ошибка транзакции:', transaction.error);
-							res(null);
-						};
-					});
+					// 3. Используем bulkAdd для эффективной массовой вставки всех собранных объектов
+					await db.objects.bulkAdd(objectsToStore);
+				});
 
-					// Повторно используем тот же ArrayBuffer для следующего чтения
-					buffer = value.buffer;
-				}
 				total = count;
 			} finally {
 				reader.releaseLock();
-				db.close(); // Закрываем соединение после завершения
 			}
 
 			if (!response.ok) {

@@ -10,6 +10,7 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
+		"@streamparser/json": "^0.0.22",
 		"@tanstack/react-table": "^8.21.3",
 		"dexie": "^4.2.1",
 		"dexie-react-hooks": "^4.2.0",

@@ -88,7 +88,7 @@ export function useRequestStream<T>(url: string) {
 
 						// Повторно используем тот же ArrayBuffer для следующего чтения
 						buffer = value.buffer;
-						if (objectsToStore.length >= 500) {
+						if (objectsToStore.length >= 5000) {
 							await db.objects.bulkAdd(objectsToStore);
 							objectsToStore = [];
 						}

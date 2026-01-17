@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { db, type Objects } from '@/db'; // Импортируем экземпляр db из db.ts
-import Dexie from 'dexie';
 import { JSONParser } from '@streamparser/json';
 
 type IRequestConfig = {
@@ -27,9 +26,8 @@ export function useRequestStream<T>(url: string) {
 			controller = new AbortController();
 			const signal = controller.signal;
 
-			// 1. Очищаем старую базу данных перед началом нового стрима
-			await Dexie.delete('StreamDataDB');
-			await db.open(); // Открываем соединение заново
+			if (!db.isOpen()) await db.open();
+			await db.objects.clear();
 
 			const response = await fetch(url, {
 				method: config?.method || 'GET',

@@ -31,7 +31,7 @@ interface ITableState {
 export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps) {
 	const [state, setState] = useState<ITableState>({
 		filters: {
-			change_type: ['changed', 'deleted', 'moved'],
+			change_type: ['changed', 'removed', 'moved'],
 		},
 		direction: 'next',
 	});
@@ -132,7 +132,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 	};
 
 	// Функция задания фильтра кликом по полю яцейки тела таблици
-	const handleClickToSort = (field: keyof IFilters, value: string) => {
+	const handleClickToFillter = (field: keyof IFilters, value: string) => {
 		setState((prev: ITableState) => {
 			const next = { ...prev };
 			if (field != 'change_type') {
@@ -258,7 +258,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 										<td className={styles.td}>{el.obj_name}</td>
 										<td
 											className={cn(styles.td, styles.td_filtered)}
-											onClick={() => handleClickToSort('obj_type', el.obj_type)}
+											onClick={() => handleClickToFillter('obj_type', el.obj_type)}
 										>
 											{el.obj_type}
 										</td>
@@ -285,8 +285,8 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				</label>
 				<label>
 					<CheckBox
-						onChange={() => handleCheckboxChange('deleted')}
-						checked={state.filters.change_type.includes('deleted')}
+						onChange={() => handleCheckboxChange('removed')}
+						checked={state.filters.change_type.includes('removed')}
 					/>
 					Удалённые
 				</label>

@@ -1,14 +1,14 @@
-import { db } from '@/db';
+import { db, type Objects } from '@/db';
 import styles from './DataBaseDexieSection.module.css';
-import { useMemo, useState, type DetailedHTMLProps, type HTMLAttributes } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useCallback, useEffect, useMemo, useRef, useState, type DetailedHTMLProps, type HTMLAttributes } from 'react';
 import { CheckBox, Spinner } from '@/ui';
 import Close from '@/assets/svg/bun.svg?react';
 import cn from 'classnames';
 import SortUp from '@/assets/svg/sort-up.svg?react';
 import SortDown from '@/assets/svg/sort-down.svg?react';
 import Sort from '@/assets/svg/sort.svg?react';
-import { TableVirtuoso } from 'react-virtuoso';
+import debounce from 'lodash/debounce';
+import { TableVirtuoso, type TableVirtuosoHandle } from 'react-virtuoso';
 
 interface DataBaseDexieProps extends DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> {
 	className?: string;
@@ -32,29 +32,145 @@ interface ITableState {
 export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps) {
 	const [state, setState] = useState<ITableState>({
 		filters: {
-			change_type: ['changed', 'removed', 'moved'],
+			change_type: ['changed', 'deleted', 'moved'],
 		},
 		direction: 'next',
 	});
-	const [loading, setLoading] = useState<boolean>(false);
+	const virtuosoRef = useRef<TableVirtuosoHandle>(null);
 
-	const result = useLiveQuery(async () => {
-		setLoading(true);
+	// Храним текущие видимые индексы в рефе, чтобы знать, что подгружать при смене фильтров
+	const visibleRangeRef = useRef({ start: 0, end: 100 });
 
-		try {
-			// 1. Используется приоритетный фильтр через составной индекс
-			const collection = db.objects.toCollection();
+	// Динамический счетчик для скроллбара
+	const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
+	const [isCalculating, setIsCalculating] = useState(false);
+	// const totalCount = useLiveQuery(async () => {
+	// 	const col = getFilteredCollection(state);
+	// 	return await col.count();
+	// }, [state]);
 
-			// 9. Получение данныч с ограничением (пагинацией)
-			const items = await collection.limit(100).toArray();
+	const [visibleData, setVisibleData] = useState<Objects[]>([]);
+	const [dataRange, setDataRange] = useState({ start: 0, end: 0 });
+	// Реф для хранения последнего запрошенного диапазона, чтобы избежать дублей
+	const lastRequestedRange = useRef('');
 
-			return items;
-		} finally {
-			setLoading(false);
+	// Оптимизированная функция загрузки
+	const loadRange = useCallback(
+		async (start: number, end: number) => {
+			// Создаем "окно" побольше (запас сверху и снизу по 200 строк)
+			const buffer = 200;
+			const fetchStart = Math.max(0, start - buffer);
+			const fetchCount = end - start + buffer * 2;
+
+			// Ключ теперь включает состояние фильтров
+			const stateKey = JSON.stringify(state);
+			const rangeKey = `${fetchStart}-${fetchCount}-${stateKey}`;
+
+			if (lastRequestedRange.current === rangeKey) return;
+			lastRequestedRange.current = rangeKey;
+
+			// Получаем отфильтрованную коллекцию
+			const collection = getFilteredCollection(state);
+
+			// Запрос к БД
+			const items = await collection.offset(fetchStart).limit(fetchCount).toArray();
+
+			// Обновляем состояние одним махом
+			setDataRange({ start: fetchStart, end: fetchStart + items.length });
+			setVisibleData(items);
+		},
+		[state],
+	);
+
+	// Дебаунс: запрашиваем данные только через 150мс после остановки скролла
+	const debouncedLoadRange = useMemo(() => debounce(loadRange, 150), [loadRange]);
+
+	const getFilteredCollection = (state: ITableState, forCount = false) => {
+		const { change_type, obj_type, search_name } = state.filters;
+		const { sortBy, direction } = state;
+
+		let collection;
+
+		// 1. Выбор индекса для сортировки (используем составные индексы из вашей схемы)
+		if (forCount) {
+			collection = db.objects.orderBy('obj_name');
+		} else if (sortBy === 'obj_type') {
+			collection = db.objects.orderBy('[obj_type+obj_name]');
+		} else if (sortBy === 'change_type') {
+			collection = db.objects.orderBy('[change_type+obj_name]');
+		} else {
+			collection = db.objects.orderBy('obj_name');
 		}
-	}, [state]);
 
-	const items = result || [];
+		// 2. Направление
+		if (direction === 'prev') {
+			collection = collection.reverse();
+		}
+
+		// 3. Фильтрация (Внимание: .filter и .and на 200к записей могут притормаживать)
+		// Стараемся использовать индексы там, где это возможно
+		if (change_type.length < 3) {
+			// Если выбраны не все типы
+			collection = collection.filter(item => change_type.includes(item.change_type));
+		}
+
+		if (obj_type) {
+			collection = collection.filter(item => item.obj_type === obj_type);
+		}
+
+		if (search_name) {
+			const query = search_name.toLowerCase();
+			collection = collection.filter(item => item.obj_name.toLowerCase().includes(query));
+		}
+
+		return collection;
+	};
+
+	// Сброс данных при изменении фильтров, чтобы не видеть старые данные на новых местах
+	useEffect(() => {
+		setVisibleData([]);
+		setDataRange({ start: 0, end: 0 });
+		lastRequestedRange.current = '';
+
+		// 2. ПРИНУДИТЕЛЬНО вызываем загрузку для текущего места скролла
+		// Используем без дебаунса, чтобы сработало мгновенно при клике на фильтр
+		loadRange(visibleRangeRef.current.start, visibleRangeRef.current.end);
+
+		// 3. Сбрасываем скролл в начало (опционально, если это нужно при фильтрации)
+		virtuosoRef.current?.scrollToIndex(0);
+	}, [loadRange, state]);
+
+	// Эффект для подсчета количества
+	useEffect(() => {
+		let isCancelled = false;
+
+		const updateCount = async () => {
+			// 1. Включаем спиннер сразу при изменении state
+			setIsCalculating(true);
+
+			try {
+				// Для count сортировка (orderBy) не нужна — это ускорит процесс
+				const col = getFilteredCollection(state, true);
+				const count = await col.count();
+
+				if (!isCancelled) {
+					setTotalCount(count);
+				}
+			} catch (err) {
+				console.error('Ошибка подсчета:', err);
+			} finally {
+				if (!isCancelled) {
+					setIsCalculating(false);
+				}
+			}
+		};
+
+		updateCount();
+
+		return () => {
+			isCancelled = true;
+		};
+	}, [state]);
 
 	// Функция изменения сортировки
 	const changeSort = (sortBy: string) => {
@@ -67,7 +183,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 	};
 
 	// Функция задания фильтра кликом по полю яцейки тела таблици
-	const handleClickToFillter = (field: keyof IFilters, value: string) => {
+	const handleClickToSort = (field: keyof IFilters, value: string) => {
 		setState((prev: ITableState) => {
 			const next = { ...prev };
 			if (field != 'change_type') {
@@ -107,14 +223,13 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 
 	// Блок заколовка компонента
 	const title = useMemo(() => {
-		// console.log('title render');
 		return (
 			<h3 className={styles.title}>
-				Работа с Dexie{' '}
-				{items == undefined || loading ? <Spinner className={styles.spinner} /> : <span>{0} / totalCount</span>}
+				Работа с Dexie
+				{isCalculating ? <Spinner className={styles.spinner} /> : <span>{totalCount ?? 0}</span>}
 			</h3>
 		);
-	}, [loading]);
+	}, [totalCount, isCalculating]); // Зависим от обоих состояний
 
 	// Кнопка сострелками направления фильтрации для ячеек шапки таблицы
 	const buttonSort = (direction: string, targetSort: boolean, sortBy: string) => {
@@ -132,28 +247,100 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		);
 	};
 
-	// Блок таблица
 	const table = useMemo(() => {
-		// console.log('table render');
 		return (
 			<TableVirtuoso
-				style={{ height: '100%' }}
-				data={items}
+				totalCount={totalCount}
+				overscan={700} // Чем больше, тем меньше белых пятен, но больше нагрузка на DOM
+				rangeChanged={({ startIndex, endIndex }) => {
+					visibleRangeRef.current = { start: startIndex, end: endIndex };
+					if (startIndex < dataRange.start || endIndex > dataRange.end) {
+						debouncedLoadRange(startIndex, endIndex);
+					}
+				}}
+				className={styles.table}
 				fixedHeaderContent={() => (
 					<tr>
-						<th style={{ width: 150, background: 'var(--background)' }}>Name</th>
-						<th style={{ background: 'var(--background)' }}>Description</th>
+						<th className={styles.th}>
+							<div>
+								<span>uid</span>
+								<span className={styles.grow}></span>
+								{buttonSort(state.direction, state.sortBy == 'obj_name', 'obj_name')}
+								<button
+									className={cn(styles.sort_btn, {
+										[styles.hide]: !('obj_name' in state.filters),
+									})}
+									onClick={() => handleClearFilters('obj_name' as keyof IFilters)}
+								>
+									<Close />
+								</button>
+							</div>
+						</th>
+						<th className={styles.th}>
+							<div>
+								<span>obj_type</span>
+								<span className={styles.grow}></span>
+								{buttonSort(state.direction, state.sortBy == 'obj_type', 'obj_type')}
+								<button
+									className={cn(styles.sort_btn, styles.active, {
+										[styles.hide]: !('obj_type' in state.filters),
+									})}
+									onClick={() => handleClearFilters('obj_type' as keyof IFilters)}
+								>
+									<Close />
+								</button>
+							</div>
+						</th>
+
+						<th className={styles.th}>
+							<div>
+								<span>change_type</span>
+							</div>
+						</th>
 					</tr>
 				)}
-				itemContent={(index, obj) => (
-					<>
-						<td style={{ width: 150 }}>{obj.obj_name}</td>
-						<td>{obj.obj_type}</td>
-					</>
-				)}
+				itemContent={index => {
+					// Ищем объект в нашем текущем кеше
+					const item = visibleData[index - dataRange.start];
+
+					if (!item) {
+						// Чтобы не было прыжков, возвращаем пустую строку фиксированной высоты
+						return (
+							<>
+								<td className={styles.td}>...</td>
+								<td className={styles.td}>...</td>
+								<td className={styles.td}>...</td>
+							</>
+						);
+					}
+
+					return (
+						<>
+							<>
+								<td className={styles.td}>{item.obj_name}</td>
+								<td
+									className={cn(styles.td, styles.td_filtered)}
+									onClick={() => handleClickToSort('obj_type', item.obj_type)}
+								>
+									{item.obj_type}
+								</td>
+								<td className={styles.td}>{item.change_type}</td>
+							</>
+						</>
+					);
+				}}
 			/>
 		);
-	}, [items]);
+	}, [
+		dataRange.end,
+		dataRange.start,
+		debouncedLoadRange,
+		state.direction,
+		state.filters,
+		state.sortBy,
+		totalCount,
+		visibleData,
+	]);
 
 	// Блок чекбоксов фильтрации по полю change_type
 	const checkboxes = useMemo(() => {
@@ -168,8 +355,8 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				</label>
 				<label>
 					<CheckBox
-						onChange={() => handleCheckboxChange('removed')}
-						checked={state.filters.change_type.includes('removed')}
+						onChange={() => handleCheckboxChange('deleted')}
+						checked={state.filters.change_type.includes('deleted')}
 					/>
 					Удалённые
 				</label>
@@ -184,6 +371,8 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		);
 	}, [handleCheckboxChange]);
 
+	// if (!totalCount) return <div>Загрузка структуры базы...</div>;
+
 	return (
 		<section className={`${className} ${styles.data_base_section}`} {...props}>
 			{title}
@@ -194,75 +383,3 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		</section>
 	);
 }
-
-/*
-const table = useMemo(() => {
-		// console.log('table render');
-		return (
-			<div className={styles.wrap}>
-				<table className={styles.table}>
-					{items && (
-						<thead className={styles.thead}>
-							<tr>
-								<th className={styles.th}>
-									<div>
-										<span>uid</span>
-										<span className={styles.grow}></span>
-										{buttonSort(state.direction, state.sortBy == 'obj_name', 'obj_name')}
-										<button
-											className={cn(styles.sort_btn, {
-												[styles.hide]: !('obj_name' in state.filters),
-											})}
-											onClick={() => handleClearFilters('obj_name' as keyof IFilters)}
-										>
-											<Close />
-										</button>
-									</div>
-								</th>
-								<th className={styles.th}>
-									<div>
-										<span>obj_type</span>
-										<span className={styles.grow}></span>
-										{buttonSort(state.direction, state.sortBy == 'obj_type', 'obj_type')}
-										<button
-											className={cn(styles.sort_btn, styles.active, {
-												[styles.hide]: !('obj_type' in state.filters),
-											})}
-											onClick={() => handleClearFilters('obj_type' as keyof IFilters)}
-										>
-											<Close />
-										</button>
-									</div>
-								</th>
-
-								<th className={styles.th}>
-									<div>
-										<span>change_type</span>
-									</div>
-								</th>
-							</tr>
-						</thead>
-					)}
-
-					<tbody className={styles.tbody}>
-						{items &&
-							items.map(el => {
-								return (
-									<tr key={el.obj_name} className={styles.tr}>
-										<td className={styles.td}>{el.obj_name}</td>
-										<td
-											className={cn(styles.td, styles.td_filtered)}
-											onClick={() => handleClickToFillter('obj_type', el.obj_type)}
-										>
-											{el.obj_type}
-										</td>
-										<td className={styles.td}>{el.change_type}</td>
-									</tr>
-								);
-							})}
-					</tbody>
-				</table>
-			</div>
-		);
-	}, [items]);
-	*/

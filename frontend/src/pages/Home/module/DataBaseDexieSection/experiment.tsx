@@ -1,7 +1,7 @@
 import { db, type Objects } from '@/db';
 import styles from './DataBaseDexieSection.module.css';
 import { useCallback, useEffect, useMemo, useRef, useState, type DetailedHTMLProps, type HTMLAttributes } from 'react';
-import { CheckBox, Spinner } from '@/ui';
+import { CheckBox } from '@/ui';
 import Close from '@/assets/svg/bun.svg?react';
 import cn from 'classnames';
 import SortUp from '@/assets/svg/sort-up.svg?react';
@@ -36,23 +36,14 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		},
 		direction: 'next',
 	});
-	const virtuosoRef = useRef<TableVirtuosoHandle>(null);
-
-	// Храним текущие видимые индексы в рефе, чтобы знать, что подгружать при смене фильтров
-	const visibleRangeRef = useRef({ start: 0, end: 100 });
-
-	// Динамический счетчик для скроллбара
-	const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
-	const [isCalculating, setIsCalculating] = useState(false);
-	// const totalCount = useLiveQuery(async () => {
-	// 	const col = getFilteredCollection(state);
-	// 	return await col.count();
-	// }, [state]);
-
 	const [visibleData, setVisibleData] = useState<Objects[]>([]);
 	const [dataRange, setDataRange] = useState({ start: 0, end: 0 });
-	// Реф для хранения последнего запрошенного диапазона, чтобы избежать дублей
+	const visibleRangeRef = useRef({ start: 0, end: 100 });
+
+	const virtuosoRef = useRef<TableVirtuosoHandle>(null);
 	const lastRequestedRange = useRef('');
+
+	const isEndReached = useRef(false);
 
 	// Оптимизированная функция загрузки
 	const loadRange = useCallback(
@@ -128,49 +119,49 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 
 	// Сброс данных при изменении фильтров, чтобы не видеть старые данные на новых местах
 	useEffect(() => {
+		isEndReached.current = false;
 		setVisibleData([]);
 		setDataRange({ start: 0, end: 0 });
 		lastRequestedRange.current = '';
 
-		// 2. ПРИНУДИТЕЛЬНО вызываем загрузку для текущего места скролла
-		// Используем без дебаунса, чтобы сработало мгновенно при клике на фильтр
 		loadRange(visibleRangeRef.current.start, visibleRangeRef.current.end);
+		// loadRange(0, 100);
 
 		// 3. Сбрасываем скролл в начало (опционально, если это нужно при фильтрации)
 		virtuosoRef.current?.scrollToIndex(0);
 	}, [loadRange, state]);
 
 	// Эффект для подсчета количества
-	useEffect(() => {
-		let isCancelled = false;
+	// useEffect(() => {
+	// 	let isCancelled = false;
 
-		const updateCount = async () => {
-			// 1. Включаем спиннер сразу при изменении state
-			setIsCalculating(true);
+	// 	const updateCount = async () => {
+	// 		// 1. Включаем спиннер сразу при изменении state
+	// 		setIsCalculating(true);
 
-			try {
-				// Для count сортировка (orderBy) не нужна — это ускорит процесс
-				const col = getFilteredCollection(state, true);
-				const count = await col.count();
+	// 		try {
+	// 			// Для count сортировка (orderBy) не нужна — это ускорит процесс
+	// 			const col = getFilteredCollection(state, true);
+	// 			const count = await col.count();
 
-				if (!isCancelled) {
-					setTotalCount(count);
-				}
-			} catch (err) {
-				console.error('Ошибка подсчета:', err);
-			} finally {
-				if (!isCancelled) {
-					setIsCalculating(false);
-				}
-			}
-		};
+	// 			if (!isCancelled) {
+	// 				setTotalCount(count);
+	// 			}
+	// 		} catch (err) {
+	// 			console.error('Ошибка подсчета:', err);
+	// 		} finally {
+	// 			if (!isCancelled) {
+	// 				setIsCalculating(false);
+	// 			}
+	// 		}
+	// 	};
 
-		updateCount();
+	// 	updateCount();
 
-		return () => {
-			isCancelled = true;
-		};
-	}, [state]);
+	// 	return () => {
+	// 		isCancelled = true;
+	// 	};
+	// }, [state]);
 
 	// Функция изменения сортировки
 	const changeSort = (sortBy: string) => {
@@ -226,10 +217,10 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		return (
 			<h3 className={styles.title}>
 				Работа с Dexie
-				{isCalculating ? <Spinner className={styles.spinner} /> : <span>{totalCount ?? 0}</span>}
+				{/* {isCalculating ? <Spinner className={styles.spinner} /> : <span>{totalCount ?? 0}</span>} */}
 			</h3>
 		);
-	}, [totalCount, isCalculating]); // Зависим от обоих состояний
+	}, []); // Зависим от обоих состояний
 
 	// Кнопка сострелками направления фильтрации для ячеек шапки таблицы
 	const buttonSort = (direction: string, targetSort: boolean, sortBy: string) => {
@@ -250,7 +241,8 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 	const table = useMemo(() => {
 		return (
 			<TableVirtuoso
-				totalCount={totalCount}
+				// ref={virtuosoRef}
+				totalCount={50000}
 				overscan={700} // Чем больше, тем меньше белых пятен, но больше нагрузка на DOM
 				rangeChanged={({ startIndex, endIndex }) => {
 					visibleRangeRef.current = { start: startIndex, end: endIndex };
@@ -307,9 +299,9 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 						// Чтобы не было прыжков, возвращаем пустую строку фиксированной высоты
 						return (
 							<>
-								<td className={styles.td}>...</td>
-								<td className={styles.td}>...</td>
-								<td className={styles.td}>...</td>
+								<td className={cn(styles.td)}>...</td>
+								<td className={cn(styles.td)}>...</td>
+								<td className={cn(styles.td)}>...</td>
 							</>
 						);
 					}
@@ -331,16 +323,8 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				}}
 			/>
 		);
-	}, [
-		dataRange.end,
-		dataRange.start,
-		debouncedLoadRange,
-		state.direction,
-		state.filters,
-		state.sortBy,
-		totalCount,
-		visibleData,
-	]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [dataRange.end, dataRange.start, debouncedLoadRange, state.direction, state.filters, state.sortBy, visibleData]);
 
 	// Блок чекбоксов фильтрации по полю change_type
 	const checkboxes = useMemo(() => {
@@ -369,6 +353,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				</label>
 			</div>
 		);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [handleCheckboxChange]);
 
 	// if (!totalCount) return <div>Загрузка структуры базы...</div>;

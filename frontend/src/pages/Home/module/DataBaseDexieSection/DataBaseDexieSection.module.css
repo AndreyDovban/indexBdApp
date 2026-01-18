@@ -43,7 +43,6 @@
 }
 
 /* Ячейки шапки таблицы */
-
 .th {
 	position: sticky;
 	z-index: 1;
@@ -62,12 +61,14 @@
 }
 
 .th:nth-child(2) {
-	width: 150px;
+	min-width: 150px;
 	border-right: none;
 }
 
 .th:last-child {
-	display: none;
+	min-width: 150px;
+
+	/* display: none; */
 }
 
 /* Ячейки тела таблицы */
@@ -96,7 +97,7 @@
 }
 
 .td:last-child {
-	display: none;
+	/* display: none; */
 }
 
 .spinner {
@@ -227,4 +228,8 @@
 
 .hide {
 	display: none;
+}
+
+.unvis {
+	visibility: hidden;
 }

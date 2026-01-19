@@ -331,6 +331,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				}}
 			/>
 		);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [
 		dataRange.end,
 		dataRange.start,
@@ -369,6 +370,7 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 				</label>
 			</div>
 		);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [handleCheckboxChange]);
 
 	// if (!totalCount) return <div>Загрузка структуры базы...</div>;

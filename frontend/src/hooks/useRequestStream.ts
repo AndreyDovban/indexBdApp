@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { db, type Objects } from '@/db'; // Импортируем экземпляр db из db.ts
 import { JSONParser } from '@streamparser/json';
+import { diffObjectsMapStore } from '@/store';
+import { createParentsNames } from '@/helpers';
 
 type IRequestConfig = {
 	method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -13,6 +15,7 @@ export function useRequestStream<T>(url: string) {
 	const [data, setData] = useState<T>();
 	const [loading, setLoading] = useState<boolean>(false);
 	const [error, setError] = useState<Error | null>(null);
+	const { diffObjectsMap, setDiffObjectsMap } = diffObjectsMapStore();
 
 	let controller = new AbortController();
 
@@ -55,8 +58,34 @@ export function useRequestStream<T>(url: string) {
 
 				const data = [...objectsToStore];
 				objectsToStore = [];
+
+				const partialIndexUpdate = data.map(el => {
+					return {
+						obj_name: el.obj_name,
+						params: {
+							obj_type: el.obj_type,
+							change_type: el.change_type,
+							lv: createParentsNames(el.obj_name).length,
+						},
+					};
+				});
+
 				// Ставим запись в очередь
 				writePromise = writePromise.then(() => db.objects.bulkAdd(data));
+
+				if (partialIndexUpdate.length > 0) {
+					const newMap = new Map();
+					for (const item of partialIndexUpdate) {
+						newMap.set(item.obj_name, item.params);
+					}
+
+					const next = diffObjectsMap;
+					for (const [key, value] of newMap) {
+						next.set(key, value);
+					}
+
+					setDiffObjectsMap(next);
+				}
 			};
 
 			// Обработчик срабатывает для каждого завершенного узла (ключа, объекта или элемента массива)

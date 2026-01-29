@@ -11,7 +11,7 @@ const createData = async num => {
 	const writeStream = createWriteStream('output.json');
 
 	const change_types = ['changed', 'deleted', 'moved'];
-	const object_types = ['person', 'group', 'container'];
+	const object_types = ['user', 'group', 'container'];
 
 	const len = num;
 

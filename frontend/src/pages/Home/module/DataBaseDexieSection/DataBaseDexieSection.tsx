@@ -1,14 +1,25 @@
 import { db, type Objects } from '@/db';
 import styles from './DataBaseDexieSection.module.css';
-import { useCallback, useEffect, useMemo, useRef, useState, type DetailedHTMLProps, type HTMLAttributes } from 'react';
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type ChangeEvent,
+	type DetailedHTMLProps,
+	type HTMLAttributes,
+} from 'react';
 import { CheckBox, Spinner } from '@/ui';
-import Close from '@/assets/svg/bun.svg?react';
 import cn from 'classnames';
 import SortUp from '@/assets/svg/sort-up.svg?react';
 import SortDown from '@/assets/svg/sort-down.svg?react';
 import Sort from '@/assets/svg/sort.svg?react';
+import Clear from '@/assets/svg/close.svg?react';
+import Bun from '@/assets/svg/bun.svg?react';
 import debounce from 'lodash/debounce';
 import { TableVirtuoso, type TableVirtuosoHandle } from 'react-virtuoso';
+import { choosedObjectsMapStore, diffObjectsMapStore } from '@/store';
 
 interface DataBaseDexieProps extends DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> {
 	className?: string;
@@ -18,7 +29,7 @@ interface DataBaseDexieProps extends DetailedHTMLProps<HTMLAttributes<HTMLElemen
 interface IFilters {
 	obj_type?: string;
 	change_type: string[];
-	search_name?: string;
+	applied_search?: string;
 }
 
 // Интерфейс состояния таблицы
@@ -26,153 +37,170 @@ interface ITableState {
 	filters: IFilters;
 	direction: 'next' | 'prev';
 	sortBy?: string;
+	search_term?: string;
+}
+
+// Интерфейс объекта для отображения в таблице
+interface IObjectForRow {
+	obj_name: string;
+	obj_type: string;
+	change_type: string;
+	lv: number;
 }
 
 // Компонент секция отрисовки данных indexDB
 export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps) {
+	const { choosedObjectsMap, setChoosedObjectsMap } = choosedObjectsMapStore(); // Состояния атома -  Map выбранных облегченных объектов для быстрого поиска
+	const { diffObjectsMap } = diffObjectsMapStore(); // Значение атома состояния - map облегчённых объектов с изменеиями
+	const [, setTargetObjecDiff] = useState<Objects>({ obj_name: '', obj_type: '', change_type: '' }); //  Функция изменения состояния объект с информацией об изменённых атрибутах выбранного для просмотра объекта
+
+	const [chooseAllByType, setChooseAllByType] = useState(false); // Внутреннее состояние компонента выбрать/отменить все объекты выбранных для показа типов
+	const [targetObjectName, setTargetObjectName] = useState('');
+	const [listNamesParents, setListNamesParents] = useState(new Set()); // Внутреннее состояние компонента массив "dn" удалённых/перемещённых контейнеров для автоматического добавления в список объектов для восстановления
+
+	/* Внутреннее состояние компонента - состояние фильтрации и сортироваки таблицы */
 	const [state, setState] = useState<ITableState>({
 		filters: {
-			change_type: ['changed', 'deleted', 'moved'],
+			change_type: ['changed', 'removed', 'moved'],
+			applied_search: '',
 		},
 		direction: 'next',
+		search_term: '',
 	});
-	const virtuosoRef = useRef<TableVirtuosoHandle>(null);
 
-	// Храним текущие видимые индексы в рефе, чтобы знать, что подгружать при смене фильтров
-	const visibleRangeRef = useRef({ start: 0, end: 100 });
+	/* Мемоизированные данные для отрисовки в таблице с виртулизацией */
+	const displayData = useMemo(() => {
+		// 1. Быстрая проверка на пустые данные
+		if (!diffObjectsMap || diffObjectsMap.size === 0) return [];
 
-	// Динамический счетчик для скроллбара
-	const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
-	const [isCalculating, setIsCalculating] = useState(false);
-	// const totalCount = useLiveQuery(async () => {
-	// 	const col = getFilteredCollection(state);
-	// 	return await col.count();
-	// }, [state]);
+		const { change_type, obj_type, applied_search } = state.filters; // Состояние фильтрации
+		const { sortBy, direction } = state; // Состояние сортировки
 
-	const [visibleData, setVisibleData] = useState<Objects[]>([]);
-	const [dataRange, setDataRange] = useState({ start: 0, end: 0 });
-	// Реф для хранения последнего запрошенного диапазона, чтобы избежать дублей
-	const lastRequestedRange = useRef('');
+		const result: IObjectForRow[] = []; // Итоговый массив данных
+		const query = applied_search?.toLowerCase(); // Строка для поиска по вхождению
 
-	// Оптимизированная функция загрузки
-	const loadRange = useCallback(
-		async (start: number, end: number) => {
-			// Создаем "окно" побольше (запас сверху и снизу по 200 строк)
-			const buffer = 200;
-			const fetchStart = Math.max(0, start - buffer);
-			const fetchCount = end - start + buffer * 2;
+		// 2. Единый цикл фильтрации (самый быстрый способ в JS 2026)
+		for (const [obj_name, params] of diffObjectsMap) {
+			// Фильтр по типу изменения
+			if (change_type.length < 3 && !change_type.includes(params.change_type)) continue;
 
-			// Ключ теперь включает состояние фильтров
-			const stateKey = JSON.stringify(state);
-			const rangeKey = `${fetchStart}-${fetchCount}-${stateKey}`;
+			// Фильтр по типу объекта
+			if (obj_type && params.obj_type !== obj_type) continue;
 
-			if (lastRequestedRange.current === rangeKey) return;
-			lastRequestedRange.current = rangeKey;
+			// Поиск по имени (UID)
+			if (query && !obj_name.toLowerCase().includes(query)) continue;
 
-			// Получаем отфильтрованную коллекцию
-			const collection = getFilteredCollection(state);
+			// Добавляем в итоговый массив облегченный объект
+			result.push({
+				obj_name: obj_name,
+				obj_type: params.obj_type,
+				change_type: params.change_type,
+				lv: params.lv,
+			});
+		}
 
-			// Запрос к БД
-			const items = await collection.offset(fetchStart).limit(fetchCount).toArray();
+		// 3. Сортировка
+		result.sort((a: IObjectForRow, b: IObjectForRow) => {
+			// Сортировка по имени всегда (как базовая или основная)
+			if (sortBy === 'obj_name' || !sortBy) {
+				return a.obj_name.localeCompare(b.obj_name);
+			}
 
-			// Обновляем состояние одним махом
-			setDataRange({ start: fetchStart, end: fetchStart + items.length });
-			setVisibleData(items);
-		},
-		[state],
+			// Сортировка по типу или изменению
+			const valA = a[sortBy] || '';
+			const valB = b[sortBy] || '';
+
+			// Если значения одинаковые, сортируем по имени для стабильности списка
+			return valA.localeCompare(valB) || a.obj_name.localeCompare(b.obj_name);
+		});
+
+		// 4. Направление
+		if (direction === 'prev') {
+			result.reverse();
+		}
+
+		if (chooseAllByType) {
+			const objects = changeExistMovedParent(result);
+			setChoosedObjectsMap(objects);
+		} else {
+			setChoosedObjectsMap(new Map());
+			setListNamesParents(new Set([]));
+		}
+
+		return result;
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [
+		diffObjectsMap,
+		state.direction,
+		state.filters.applied_search,
+		state.filters.change_type,
+		state.filters.obj_type,
+		state.sortBy,
+		chooseAllByType,
+		setChoosedObjectsMap,
+	]);
+	console.log(diffObjectsMap.size);
+
+	/* Функция которая обновляет только примененный фильтр */
+	const debouncedApplySearch = useMemo(
+		() =>
+			debounce(value => {
+				setState(prev => ({
+					...prev,
+					filters: { ...prev.filters, applied_search: value },
+				}));
+			}, 500),
+		[],
 	);
 
-	// Дебаунс: запрашиваем данные только через 150мс после остановки скролла
-	const debouncedLoadRange = useMemo(() => debounce(loadRange, 150), [loadRange]);
+	/* Обработчик изменения в инпуте */
+	const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
+		const value = e.target.value;
 
-	const getFilteredCollection = (state: ITableState, forCount = false) => {
-		const { change_type, obj_type, search_name } = state.filters;
-		const { sortBy, direction } = state;
+		// Мгновенно обновляем search_term для плавности печати
+		setState(prev => ({ ...prev, search_term: value }));
 
-		let collection;
-
-		// 1. Выбор индекса для сортировки (используем составные индексы из вашей схемы)
-		if (forCount) {
-			collection = db.objects.orderBy('obj_name');
-		} else if (sortBy === 'obj_type') {
-			collection = db.objects.orderBy('[obj_type+obj_name]');
-		} else if (sortBy === 'change_type') {
-			collection = db.objects.orderBy('[change_type+obj_name]');
-		} else {
-			collection = db.objects.orderBy('obj_name');
-		}
-
-		// 2. Направление
-		if (direction === 'prev') {
-			collection = collection.reverse();
-		}
-
-		// 3. Фильтрация (Внимание: .filter и .and на 200к записей могут притормаживать)
-		// Стараемся использовать индексы там, где это возможно
-		if (change_type.length < 3) {
-			// Если выбраны не все типы
-			collection = collection.filter(item => change_type.includes(item.change_type));
-		}
-
-		if (obj_type) {
-			collection = collection.filter(item => item.obj_type === obj_type);
-		}
-
-		if (search_name) {
-			const query = search_name.toLowerCase();
-			collection = collection.filter(item => item.obj_name.toLowerCase().includes(query));
-		}
-
-		return collection;
+		// Откладываем обновление тяжелого фильтра
+		debouncedApplySearch(value);
 	};
 
-	// Сброс данных при изменении фильтров, чтобы не видеть старые данные на новых местах
-	useEffect(() => {
-		setVisibleData([]);
-		setDataRange({ start: 0, end: 0 });
-		lastRequestedRange.current = '';
+	/* Обработчик выбора объекта для отображения в таблице с изменёнными атрибутами */
+	async function handleChoose(path: string) {
+		const obj = await db.objects.get(path);
 
-		// 2. ПРИНУДИТЕЛЬНО вызываем загрузку для текущего места скролла
-		// Используем без дебаунса, чтобы сработало мгновенно при клике на фильтр
-		loadRange(visibleRangeRef.current.start, visibleRangeRef.current.end);
+		// console.log(obj);
+	}
 
-		// 3. Сбрасываем скролл в начало (опционально, если это нужно при фильтрации)
-		virtuosoRef.current?.scrollToIndex(0);
-	}, [loadRange, state]);
+	/* Функция включения в список на восстановление удалённых(перемещённых) контейнеров имеющих дочерние компоненты в списке на восстановление */
+	function changeExistMovedParent(list: IObjectForRow[]) {
+		const choosedObjects = new Map();
+		for (const el of list) {
+			const params = { change_type: el.change_type, lv: el.lv, obj_type: el.obj_type };
 
-	// Эффект для подсчета количества
-	useEffect(() => {
-		let isCancelled = false;
+			choosedObjects.set(el.obj_name, params);
+		}
 
-		const updateCount = async () => {
-			// 1. Включаем спиннер сразу при изменении state
-			setIsCalculating(true);
+		return choosedObjects;
+	}
 
-			try {
-				// Для count сортировка (orderBy) не нужна — это ускорит процесс
-				const col = getFilteredCollection(state, true);
-				const count = await col.count();
+	/* Функция добавления и удаления всех отображённых объектов в массив объектов для восстановления */
+	const handleAddAllObjects = () => setChooseAllByType(prev => !prev);
 
-				if (!isCancelled) {
-					setTotalCount(count);
-				}
-			} catch (err) {
-				console.error('Ошибка подсчета:', err);
-			} finally {
-				if (!isCancelled) {
-					setIsCalculating(false);
-				}
-			}
-		};
+	/* Функция добавления/удаления одного объекта из сета выбранных объектов */
+	const handleChooseObject = (obj: Objects) => {
+		let arr = [];
 
-		updateCount();
+		if (choosedObjectsMap.has(obj.obj_name)) {
+			arr = Array.from(choosedObjectsMap).map(([key, value]) => ({ obj_name: key, ...value }));
+		} else {
+			arr = [...Array.from(choosedObjectsMap).map(([key, value]) => ({ obj_name: key, ...value })), obj];
+		}
 
-		return () => {
-			isCancelled = true;
-		};
-	}, [state]);
+		const objects = changeExistMovedParent(arr);
+		setChoosedObjectsMap(objects);
+	};
 
-	// Функция изменения сортировки
+	/* Функция изменения сортировки */
 	const changeSort = (sortBy: string) => {
 		setState(prev => {
 			const next = { ...prev };
@@ -182,20 +210,9 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		});
 	};
 
-	// Функция задания фильтра кликом по полю яцейки тела таблици
-	const handleClickToSort = (field: keyof IFilters, value: string) => {
-		setState((prev: ITableState) => {
-			const next = { ...prev };
-			if (field != 'change_type') {
-				next['filters'][field] = value;
-			}
-			return next;
-		});
-	};
-
-	// Функция сброса фильтра по выбранному полю
+	/* Функция сброса фильтра по выбранному полю */
 	const handleClearFilters = (field: keyof IFilters) => {
-		setState((prev: ITableState) => {
+		setState(prev => {
 			const next = { ...prev };
 			if (field in next.filters) {
 				delete next['filters'][field];
@@ -205,8 +222,30 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		});
 	};
 
-	// Функция изменения фильтра по полю change_type
-	const handleCheckboxChange = (type: string) => {
+	/* Функция задания фильтра кликом по полю яцейки тела таблици */
+	const handleClickToFillter = (field: keyof IFilters, value: string) => {
+		setState(prev => {
+			const next = { ...prev };
+			if (field != 'change_type') {
+				next['filters'][field] = value;
+			}
+			return next;
+		});
+	};
+
+	/* Функция задания фильтра выбором селект */
+	const handleSelectFillter = (field: keyof IFilters, value: string) => {
+		setState(prev => {
+			const next = { ...prev };
+			if (field != 'change_type') {
+				next['filters'][field] = value;
+			}
+			return next;
+		});
+	};
+
+	/* Функция изменения фильтра по полю change_type */
+	const handleCheckboxChange = (type: keyof IFilters) => {
 		let arr = [...state.filters.change_type];
 		if (arr.includes(type)) {
 			arr = arr.filter(el => el !== type);
@@ -226,122 +265,246 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		return (
 			<h3 className={styles.title}>
 				Работа с Dexie
-				{isCalculating ? <Spinner className={styles.spinner} /> : <span>{totalCount ?? 0}</span>}
+				<span>{choosedObjectsMap.size ?? 0}</span>
 			</h3>
 		);
-	}, [totalCount, isCalculating]); // Зависим от обоих состояний
+	}, [choosedObjectsMap.size]); // Зависим от обоих состояний
 
-	// Кнопка сострелками направления фильтрации для ячеек шапки таблицы
-	const buttonSort = (direction: string, targetSort: boolean, sortBy: string) => {
-		if (targetSort) {
-			return (
-				<button className={cn(styles.sort_btn, styles.active)} onClick={() => changeSort(sortBy)}>
-					{direction == 'next' ? <SortUp /> : <SortDown />}
-				</button>
-			);
-		}
-		return (
-			<button className={cn(styles.sort_btn)} onClick={() => changeSort(sortBy)}>
-				<Sort />
-			</button>
-		);
-	};
+	/* Виртуализированный компонент шапки таблицы для эффективного отображения больших табличных наборов данных */
+	const FixedHeader = useCallback(
+		() => (
+			<tr>
+				<th className={styles.th} key={1} title={'choose_all'}>
+					<CheckBox className={styles.check} checked={chooseAllByType} onChange={handleAddAllObjects} />
+				</th>
 
-	const table = useMemo(() => {
-		return (
-			<TableVirtuoso
-				totalCount={totalCount}
-				overscan={700} // Чем больше, тем меньше белых пятен, но больше нагрузка на DOM
-				rangeChanged={({ startIndex, endIndex }) => {
-					visibleRangeRef.current = { start: startIndex, end: endIndex };
-					if (startIndex < dataRange.start || endIndex > dataRange.end) {
-						debouncedLoadRange(startIndex, endIndex);
-					}
-				}}
-				className={styles.table}
-				fixedHeaderContent={() => (
-					<tr>
-						<th className={styles.th}>
-							<div>
-								<span>uid</span>
-								<span className={styles.grow}></span>
-								{buttonSort(state.direction, state.sortBy == 'obj_name', 'obj_name')}
+				<th className={cn(styles.th)} key={2}>
+					<div>
+						<span>objects</span>
+						<span className={styles.grow}></span>
+						<div className={styles.thblocksecond}>
+							<input className={styles.input} value={state.search_term} onChange={handleSearchChange} />
+							{state.sortBy == 'obj_name' ? (
+								state.direction == 'next' ? (
+									<button
+										className={cn(styles.sort_btn, styles.active)}
+										onClick={() => changeSort('obj_name')}
+									>
+										<SortUp />
+									</button>
+								) : (
+									<button
+										className={cn(styles.sort_btn, styles.active)}
+										onClick={() => changeSort('obj_name')}
+									>
+										<SortDown />
+									</button>
+								)
+							) : (
+								<button className={cn(styles.sort_btn)} onClick={() => changeSort('obj_name')}>
+									<Sort />
+								</button>
+							)}
+							{state.filters.applied_search && (
 								<button
 									className={cn(styles.sort_btn, {
 										[styles.hide]: !('obj_name' in state.filters),
 									})}
-									onClick={() => handleClearFilters('obj_name' as keyof IFilters)}
 								>
-									<Close />
+									<Clear
+										onClick={() => {
+											setState(prev => {
+												const next = { ...prev };
+												next.filters.applied_search = '';
+												next.search_term = '';
+												return next;
+											});
+										}}
+									/>
 								</button>
-							</div>
-						</th>
-						<th className={styles.th}>
-							<div>
-								<span>obj_type</span>
-								<span className={styles.grow}></span>
-								{buttonSort(state.direction, state.sortBy == 'obj_type', 'obj_type')}
+							)}
+							{state.filters.applied_search && (
 								<button
-									className={cn(styles.sort_btn, styles.active, {
-										[styles.hide]: !('obj_type' in state.filters),
-									})}
-									onClick={() => handleClearFilters('obj_type' as keyof IFilters)}
+									className={cn(styles.sort_btn, styles.active)}
+									onClick={() => {
+										setState(prev => {
+											const next = { ...prev };
+											next.filters.applied_search = '';
+											next.search_term = '';
+											return next;
+										});
+									}}
 								>
-									<Close />
+									<Bun />
 								</button>
-							</div>
-						</th>
+							)}
+						</div>
+					</div>
+				</th>
 
-						<th className={styles.th}>
-							<div>
-								<span>change_type</span>
-							</div>
-						</th>
+				<th className={cn(styles.th)} key={3}>
+					<div className={styles.thblock}>
+						<div className={styles.thblockfirst}>class</div>
+						<div className={styles.thblocksecond}>
+							<select
+								className={styles.select}
+								onChange={e => handleSelectFillter('obj_type', e.target.value)}
+								value={state.filters.obj_type ? state.filters.obj_type : ''}
+							>
+								<option className={styles.option} value=""></option>
+								<option className={styles.option} value="user">
+									user
+								</option>
+								<option className={styles.option} value="group">
+									group
+								</option>
+								<option className={styles.option} value="role">
+									role
+								</option>
+								<option className={styles.option} value="privilege">
+									privilege
+								</option>
+								<option className={styles.option} value="permission">
+									permission
+								</option>
+								<option className={styles.option} value="group_policies">
+									group_policies
+								</option>
+								<option className={styles.option} value="group_policy_templates">
+									group_policy_templates
+								</option>
+								<option className={styles.option} value="container">
+									container
+								</option>
+								<option className={styles.option} value="division">
+									division
+								</option>
+								<option className={styles.option} value="dns_record">
+									dns_record
+								</option>
+								<option className={styles.option} value="pwd_policies">
+									pwd_policies
+								</option>
+								<option className={styles.option} value="untyped">
+									untyped
+								</option>
+							</select>
+							{state.sortBy == 'obj_type' ? (
+								state.direction == 'next' ? (
+									<button
+										className={cn(styles.sort_btn, styles.active)}
+										onClick={() => changeSort('obj_type')}
+									>
+										<SortUp />
+									</button>
+								) : (
+									<button
+										className={cn(styles.sort_btn, styles.active)}
+										onClick={() => changeSort('obj_type')}
+									>
+										<SortDown />
+									</button>
+								)
+							) : (
+								<button className={cn(styles.sort_btn)} onClick={() => changeSort('obj_type')}>
+									<Sort />
+								</button>
+							)}
+							{state.filters.obj_type && (
+								<button
+									className={cn(styles.sort_btn, styles.active)}
+									onClick={() => handleClearFilters('obj_type')}
+								>
+									<Bun />
+								</button>
+							)}
+						</div>
+					</div>
+				</th>
+
+				<th className={styles.th} key={4}></th>
+			</tr>
+		),
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[state, chooseAllByType],
+	);
+
+	/* Виртуализированный компонент тела таблицы для эффективного отображения больших табличных наборов данных */
+	const TableComponents = useMemo(
+		() => ({
+			// Этот компонент отобразится, если пропс data пуст ([])
+			EmptyPlaceholder: () => (
+				<tbody>
+					<tr>
+						<td colSpan={3} style={{ textAlign: 'center', padding: '20px' }}>
+							not_found
+						</td>
 					</tr>
-				)}
-				itemContent={index => {
-					// Ищем объект в нашем текущем кеше
-					const item = visibleData[index - dataRange.start];
+				</tbody>
+			),
 
-					if (!item) {
-						// Чтобы не было прыжков, возвращаем пустую строку фиксированной высоты
-						return (
-							<>
-								<td className={styles.td}>...</td>
-								<td className={styles.td}>...</td>
-								<td className={styles.td}>...</td>
-							</>
-						);
-					}
+			TableRow: ({ ...props }) => {
+				const index = props['data-index'];
+				const rowData = displayData[index]; // Достаем данные по индексу
 
+				// Проверяем подсветку "активного" объекта
+				const isTarget = rowData?.obj_name === targetObjectName;
+
+				return (
+					<tr
+						{...props}
+						className={cn(props.className, {
+							[styles.target_object]: isTarget, // Подсветка строки
+						})}
+					/>
+				);
+			},
+		}),
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[targetObjectName],
+	);
+
+	/* Виртуализированный компонент таблицы для эффективного отображения больших табличных наборов данных */
+	const table = useMemo(
+		() => (
+			<TableVirtuoso
+				overscan={100}
+				data={displayData}
+				className={styles.table}
+				components={TableComponents}
+				fixedHeaderContent={FixedHeader}
+				itemContent={(index, obj) => {
 					return (
 						<>
-							<>
-								<td className={styles.td}>{item.obj_name}</td>
-								<td
-									className={cn(styles.td, styles.td_filtered)}
-									onClick={() => handleClickToSort('obj_type', item.obj_type)}
-								>
-									{item.obj_type}
-								</td>
-								<td className={styles.td}>{item.change_type}</td>
-							</>
+							<td className={styles.td}>
+								<CheckBox
+									className={styles.check}
+									disabled={listNamesParents.has(obj.obj_name)}
+									checked={choosedObjectsMap.has(obj.obj_name)}
+									onChange={() => handleChooseObject(obj)}
+								/>
+							</td>
+							<td className={styles.td} onClick={() => handleChoose(obj.obj_name)}>
+								{obj.obj_name}
+							</td>
+							<td
+								className={cn(styles.td, styles.td_filtered)}
+								onClick={() => {
+									handleChoose(obj.obj_name);
+									handleClickToFillter('obj_type', obj.obj_type);
+								}}
+							>
+								{obj.obj_type}
+							</td>
+							<td className={styles.td}>{obj.change_type}</td>
 						</>
 					);
 				}}
 			/>
-		);
+		),
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [
-		dataRange.end,
-		dataRange.start,
-		debouncedLoadRange,
-		state.direction,
-		state.filters,
-		state.sortBy,
-		totalCount,
-		visibleData,
-	]);
+		[state, targetObjectName, handleChoose],
+	);
 
 	// Блок чекбоксов фильтрации по полю change_type
 	const checkboxes = useMemo(() => {
@@ -349,21 +512,21 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 			<div className={styles.checkboxes}>
 				<label>
 					<CheckBox
-						onChange={() => handleCheckboxChange('changed')}
+						onChange={() => handleCheckboxChange('changed' as keyof IFilters)}
 						checked={state.filters.change_type.includes('changed')}
 					/>
 					Изменённые
 				</label>
 				<label>
 					<CheckBox
-						onChange={() => handleCheckboxChange('deleted')}
-						checked={state.filters.change_type.includes('deleted')}
+						onChange={() => handleCheckboxChange('removed' as keyof IFilters)}
+						checked={state.filters.change_type.includes('removed')}
 					/>
 					Удалённые
 				</label>
 				<label>
 					<CheckBox
-						onChange={() => handleCheckboxChange('moved')}
+						onChange={() => handleCheckboxChange('moved' as keyof IFilters)}
 						checked={state.filters.change_type.includes('moved')}
 					/>
 					Перемещённые
@@ -372,8 +535,6 @@ export function DataBaseDexieSection({ className, ...props }: DataBaseDexieProps
 		);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [handleCheckboxChange]);
-
-	// if (!totalCount) return <div>Загрузка структуры базы...</div>;
 
 	return (
 		<section className={`${className} ${styles.data_base_section}`} {...props}>

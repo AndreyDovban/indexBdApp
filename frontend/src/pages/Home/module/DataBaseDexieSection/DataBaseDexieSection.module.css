@@ -48,6 +48,8 @@
 	z-index: 1;
 	top: 0;
 
+	padding-inline: var(--s-3);
+
 	font: var(--font-p1-700);
 	color: var(--text-primary);
 
@@ -56,19 +58,26 @@
 	border-bottom: 1px solid var(--icon-primary);
 }
 
-.th:first-child {
-	width: 100%;
+/* размеры ячеек таблицы по их позиции */
+.th:nth-child(1),
+.td:nth-child(1) {
+	position: relative;
+	width: 5%;
 }
 
-.th:nth-child(2) {
-	min-width: 150px;
-	border-right: none;
+.th:nth-child(2),
+.td:nth-child(2) {
+	width: 55%;
 }
 
-.th:last-child {
-	min-width: 150px;
+.th:nth-child(3),
+.td:nth-child(3) {
+	width: 40%;
+}
 
-	/* display: none; */
+.th:nth-child(4),
+.td:nth-child(4) {
+	display: none;
 }
 
 /* Ячейки тела таблицы */
@@ -81,23 +90,6 @@
 
 	border-right: 1px solid var(--icon-primary);
 	border-bottom: 1px solid var(--icon-primary);
-}
-
-.td:first-child {
-	cursor: pointer;
-}
-
-.td:first-child:hover {
-	color: var(--red);
-}
-
-.td:nth-child(2) {
-	width: 150px;
-	border-right: none;
-}
-
-.td:last-child {
-	/* display: none; */
 }
 
 .spinner {
@@ -113,8 +105,6 @@
 	gap: var(--s-2);
 	align-items: center;
 	justify-content: space-between;
-
-	padding-inline: var(--s-3);
 }
 
 .td_filtered {
@@ -172,58 +162,8 @@
 	fill: var(--green);
 }
 
-/* Кнопки пкгинации */
-
-.pagination {
-	display: flex;
-	gap: var(--s-2);
-}
-
-.pagination_btn {
-	cursor: pointer;
-
-	display: flex;
-	align-content: center;
-	justify-content: center;
-
-	min-width: 55px;
-	padding-inline: var(--s-2);
-
-	font: var(--font-p1-400);
-	color: var(--text-primary);
-
-	background: var(--background-primary);
-	border: none;
-	border-radius: var(--s-1);
-}
-
 .grow {
 	flex-grow: 1;
-}
-
-.pagination_btn svg {
-	width: 16px;
-	height: 16px;
-	margin-top: 8px;
-	fill: var(--icon-primary);
-}
-
-.pagination_btn_down svg {
-	transform: rotateZ(180deg);
-	margin-top: 0;
-	margin-bottom: 7px;
-}
-
-.pagination_btn:hover {
-	background: var(--background-secondary);
-}
-
-.pagination_btn:hover svg {
-	fill: var(--red);
-}
-
-.pagination_btn_active {
-	outline: 2px solid var(--icon-primary);
 }
 
 .hide {
